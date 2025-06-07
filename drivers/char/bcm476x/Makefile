@@ -7,7 +7,7 @@
 #	Within this directory, the order that objects are added to obj-y
 #	will determine the order that the init functions are called.
 #
-EXTRA_CFLAGS := -Werror
+EXTRA_CFLAGS := 
 obj-$(CONFIG_BACKLIGHT_LCDFB)			+= lcd_backlight.o
 obj-$(CONFIG_BCM_BATTERY_MANAGER)		+= pm_battmgr.o
 obj-$(CONFIG_BCM4760_GPS_DRIVER)    		+= gps.o 

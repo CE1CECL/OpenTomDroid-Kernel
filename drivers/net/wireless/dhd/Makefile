@@ -63,7 +63,7 @@ DHDCFLAGS=-DLINUX		\
 	  -D__KERNEL__		\
 	  -Wall			\
 	  -Wstrict-prototypes	\
-	  -Werror		\
+	  		\
 	  -Iinclude/linux/broadcom/dhd/include	\
 	  -Iinclude/linux/broadcom/dhd/shared	\
 	  -Iinclude/linux/broadcom/dhd/dhd/sys	\

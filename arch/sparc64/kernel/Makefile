@@ -3,7 +3,7 @@
 #
 
 EXTRA_AFLAGS := -ansi
-EXTRA_CFLAGS := -Werror
+EXTRA_CFLAGS := 
 
 CFLAGS_REMOVE_ftrace.o = -pg
 

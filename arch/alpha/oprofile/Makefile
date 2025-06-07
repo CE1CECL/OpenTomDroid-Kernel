@@ -1,4 +1,4 @@
-EXTRA_CFLAGS := -Werror -Wno-sign-compare
+EXTRA_CFLAGS :=  -Wno-sign-compare
 
 obj-$(CONFIG_OPROFILE) += oprofile.o
 

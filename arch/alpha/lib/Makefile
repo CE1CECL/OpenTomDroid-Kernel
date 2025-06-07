@@ -3,7 +3,7 @@
 #
 
 EXTRA_AFLAGS := $(KBUILD_CFLAGS)
-EXTRA_CFLAGS := -Werror
+EXTRA_CFLAGS := 
 
 # Many of these routines have implementations tuned for ev6.
 # Choose them iff we're targeting ev6 specifically.

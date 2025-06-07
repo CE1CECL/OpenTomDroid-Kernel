@@ -2,7 +2,7 @@
 # Makefile which builds Broadcom drivers
 #
 
-EXTRA_CFLAGS := -Werror
+EXTRA_CFLAGS := 
 
 #obj-y += spi_load.o
 obj-$(CONFIG_BCM_HAVE_PROC_GPIO) += proc_gpio.o

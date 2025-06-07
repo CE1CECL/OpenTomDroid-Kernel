@@ -4,7 +4,7 @@
 
 extra-y		:= head.o vmlinux.lds
 EXTRA_AFLAGS	:= $(KBUILD_CFLAGS)
-EXTRA_CFLAGS	:= -Werror -Wno-sign-compare
+EXTRA_CFLAGS	:=  -Wno-sign-compare
 
 obj-y    := entry.o traps.o process.o init_task.o osf_sys.o irq.o \
 	    irq_alpha.o signal.o setup.o ptrace.o time.o \

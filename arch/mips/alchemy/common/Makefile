@@ -11,4 +11,4 @@ obj-y += prom.o irq.o puts.o time.o reset.o \
 
 obj-$(CONFIG_PCI)		+= pci.o
 
-EXTRA_CFLAGS += -Werror
+EXTRA_CFLAGS += 

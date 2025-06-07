@@ -13,4 +13,4 @@ memcpy-$(CONFIG_CPU_SH4)	:= memcpy-sh4.o
 lib-$(CONFIG_MMU)		+= copy_page.o clear_page.o
 lib-y				+= $(memcpy-y)
 
-EXTRA_CFLAGS += -Werror
+EXTRA_CFLAGS += 

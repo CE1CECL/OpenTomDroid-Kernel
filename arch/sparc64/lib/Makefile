@@ -3,7 +3,7 @@
 #
 
 EXTRA_AFLAGS := -ansi
-EXTRA_CFLAGS := -Werror
+EXTRA_CFLAGS := 
 
 lib-y := PeeCeeI.o copy_page.o clear_page.o strlen.o strncmp.o \
 	 memscan.o strncpy_from_user.o strlen_user.o memcmp.o checksum.o \

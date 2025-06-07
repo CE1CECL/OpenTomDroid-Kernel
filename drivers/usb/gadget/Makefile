@@ -35,6 +35,7 @@ dwc_otg-y			        += dwc_otg_hcd_ddma.o
 dwc_otg-y			        += dwc_otg_pcd_linux.o
 dwc_otg-y			        += dwc_otg_hcd_linux.o
 obj-$(CONFIG_USB_S3C_OTGD)	+= s3c_udc_otg.o
+g_android-objs			:= android.o f_adb.o f_mass_storage.o $(C_UTILS)
 obj-$(CONFIG_USB_AT91)		+= at91_udc.o
 obj-$(CONFIG_USB_ATMEL_USBA)	+= atmel_usba_udc.o
 obj-$(CONFIG_USB_FSL_USB2)	+= fsl_usb2_udc.o
@@ -61,4 +62,5 @@ obj-$(CONFIG_USB_G_SERIAL)	+= g_serial.o
 obj-$(CONFIG_USB_G_PRINTER)	+= g_printer.o
 obj-$(CONFIG_USB_MIDI_GADGET)	+= g_midi.o
 obj-$(CONFIG_USB_CDC_COMPOSITE) += g_cdc.o
+obj-$(CONFIG_USB_ANDROID)	+= g_android.o
 

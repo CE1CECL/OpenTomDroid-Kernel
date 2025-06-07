@@ -82,7 +82,9 @@ static void l2cap_sock_timeout(unsigned long arg)
 
 	bh_lock_sock(sk);
 
-	if (sk->sk_state == BT_CONNECT &&
+	if (sk->sk_state == BT_CONNECTED || sk->sk_state == BT_CONFIG)
+		reason = ECONNREFUSED;
+	else if (sk->sk_state == BT_CONNECT &&
 			(l2cap_pi(sk)->link_mode & (L2CAP_LM_AUTH |
 					L2CAP_LM_ENCRYPT | L2CAP_LM_SECURE)))
 		reason = ECONNREFUSED;
@@ -1634,6 +1636,9 @@ static inline int l2cap_connect_req(struct l2cap_conn *conn, struct l2cap_cmd_hd
 	l2cap_pi(sk)->ident = cmd->ident;
 
 	if (conn->info_state & L2CAP_INFO_FEAT_MASK_REQ_SENT) {
+		if (!(conn->info_state & L2CAP_INFO_FEAT_MASK_REQ_DONE))
+			return;
+
 		if (l2cap_check_link_mode(sk)) {
 			sk->sk_state = BT_CONFIG;
 			result = L2CAP_CR_SUCCESS;
@@ -1949,6 +1954,8 @@ static inline int l2cap_information_rsp(struct l2cap_conn *conn, struct l2cap_cm
 
 	if (type == L2CAP_IT_FEAT_MASK)
 		conn->feat_mask = get_unaligned_le32(rsp->data);
+
+	conn->info_state |= L2CAP_INFO_FEAT_MASK_REQ_DONE;
 
 	l2cap_conn_start(conn);
 
@@ -2564,3 +2571,6 @@ MODULE_DESCRIPTION("Bluetooth L2CAP ver " VERSION);
 MODULE_VERSION(VERSION);
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("bt-proto-0");
+
+		conn->info_state |= L2CAP_INFO_FEAT_MASK_REQ_DONE;
+

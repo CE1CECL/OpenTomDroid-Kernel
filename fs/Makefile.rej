@@ -1,0 +1,9 @@
+--- fs/Makefile	2008-10-09 18:13:53.000000000 -0400
++++ fs/Makefile	2009-08-17 14:41:10.000000000 -0400
+@@ -122,3 +122,6 @@ obj-$(CONFIG_HPPFS)		+= hppfs/
+ obj-$(CONFIG_DEBUG_FS)		+= debugfs/
+ obj-$(CONFIG_OCFS2_FS)		+= ocfs2/
+ obj-$(CONFIG_GFS2_FS)           += gfs2/
++
++# Patched by YAFFS
++obj-$(CONFIG_YAFFS_FS)		+= yaffs2/

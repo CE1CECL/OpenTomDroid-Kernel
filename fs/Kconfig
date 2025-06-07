@@ -1137,6 +1137,10 @@ config SYSV_FS
 	  NOTE: that will work only for binaries from Intel-based systems;
 	  PDP ones will have to wait until somebody ports Linux to -11 ;-)
 
+# Patched by YAFFS
+source "fs/yaffs2/Kconfig"
+
+
 	  If you only intend to mount files from some other Unix over the
 	  network using NFS, you don't need the System V file system support
 	  (but you need NFS file system support obviously).

@@ -59,6 +59,11 @@ typedef struct user_fp elf_fpregset_t;
 /*
  * These are used to set parameters in the core dumps.
  */
+
+struct task_struct;
+
+extern int dump_task_regs (struct task_struct *, elf_gregset_t *);
+
 #define ELF_CLASS	ELFCLASS32
 #ifdef __ARMEB__
 #define ELF_DATA	ELFDATA2MSB
@@ -113,5 +118,8 @@ extern int arm_elf_read_implies_exec(const struct elf32_hdr *, int);
 
 extern void elf_set_personality(const struct elf32_hdr *);
 #define SET_PERSONALITY(ex)	elf_set_personality(&(ex))
+
+#define ELF_CORE_COPY_TASK_REGS(tsk, elf_regs) dump_task_regs(tsk, elf_regs)
+
 
 #endif

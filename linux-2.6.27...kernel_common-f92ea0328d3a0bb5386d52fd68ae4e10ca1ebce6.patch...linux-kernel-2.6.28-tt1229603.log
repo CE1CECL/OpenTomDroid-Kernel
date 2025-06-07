@@ -1,0 +1,401 @@
+checking file Documentation/android.txt
+checking file arch/arm/Kconfig
+Hunk #1 succeeded at 1478 (offset 254 lines).
+checking file arch/arm/configs/msm_defconfig
+checking file arch/arm/include/asm/elf.h
+Hunk #1 succeeded at 59 with fuzz 3.
+Hunk #2 succeeded at 119 with fuzz 2 (offset 1 line).
+checking file arch/arm/include/asm/mach/mmc.h
+checking file arch/arm/kernel/process.c
+Hunk #1 succeeded at 353 (offset -12 lines).
+checking file arch/arm/kernel/signal.c
+Hunk #1 succeeded at 536 (offset 2 lines).
+Hunk #2 succeeded at 673 (offset 15 lines).
+checking file arch/arm/mm/abort-ev6.S
+checking file arch/arm/plat-omap/usb.c
+checking file block/blk-core.c
+Hunk #1 succeeded at 1538 (offset 34 lines).
+checking file drivers/Kconfig
+Hunk #1 succeeded at 92 (offset 8 lines).
+checking file drivers/Makefile
+Hunk #1 succeeded at 56 with fuzz 3.
+Hunk #2 succeeded at 93 (offset 7 lines).
+checking file drivers/bluetooth/hci_ll.c
+checking file drivers/char/Kconfig
+Hunk #2 succeeded at 1084 with fuzz 1 (offset -31 lines).
+checking file drivers/char/Makefile
+Hunk #1 succeeded at 105 (offset -1 lines).
+checking file drivers/char/dcc_tty.c
+checking file drivers/char/mem.c
+Hunk #9 succeeded at 922 (offset 10 lines).
+Hunk #10 succeeded at 991 (offset 16 lines).
+checking file drivers/cpufreq/Kconfig
+checking file drivers/cpufreq/cpufreq.c
+checking file drivers/cpufreq/cpufreq_conservative.c
+Hunk #2 succeeded at 523 (offset 1 line).
+checking file drivers/cpufreq/cpufreq_ondemand.c
+Hunk #1 succeeded at 48 (offset 6 lines).
+Hunk #2 succeeded at 588 (offset 47 lines).
+checking file drivers/i2c/chips/Kconfig
+Hunk #1 succeeded at 114 (offset 2 lines).
+Hunk #2 succeeded at 173 with fuzz 2 (offset 13 lines).
+checking file drivers/i2c/chips/Makefile
+Hunk #1 succeeded at 15 (offset 1 line).
+checking file drivers/i2c/chips/akm8976.c
+checking file drivers/i2c/chips/isp1301_omap.c
+Reversed (or previously applied) patch detected!  Skipping patch.
+1 out of 1 hunk ignored
+checking file drivers/i2c/chips/pca963x.c
+checking file drivers/input/Kconfig
+checking file drivers/input/Makefile
+checking file drivers/input/evdev.c
+Hunk #5 succeeded at 242 with fuzz 2 (offset -1 lines).
+Hunk #6 succeeded at 279 (offset -1 lines).
+Hunk #7 succeeded at 524 (offset -1 lines).
+checking file drivers/input/keyreset.c
+checking file drivers/input/misc/Kconfig
+Hunk #1 succeeded at 212 (offset 13 lines).
+Hunk #2 succeeded at 225 (offset 13 lines).
+checking file drivers/input/misc/Makefile
+Hunk #1 succeeded at 21 (offset 1 line).
+checking file drivers/input/misc/gpio_axis.c
+checking file drivers/input/misc/gpio_event.c
+checking file drivers/input/misc/gpio_input.c
+checking file drivers/input/misc/gpio_matrix.c
+checking file drivers/input/misc/gpio_output.c
+checking file drivers/input/misc/keychord.c
+checking file drivers/input/touchscreen/Kconfig
+Hunk #1 succeeded at 209 (offset 28 lines).
+checking file drivers/input/touchscreen/Makefile
+Hunk #1 succeeded at 23 (offset 1 line).
+checking file drivers/input/touchscreen/synaptics_i2c_rmi.c
+checking file drivers/leds/Kconfig
+Hunk #1 succeeded at 224 (offset 18 lines).
+checking file drivers/leds/Makefile
+Hunk #1 succeeded at 31 with fuzz 2 (offset 2 lines).
+checking file drivers/leds/ledtrig-sleep.c
+checking file drivers/misc/Kconfig
+Hunk #1 succeeded at 13 with fuzz 1.
+Hunk #3 succeeded at 464 (offset 23 lines).
+Hunk #4 succeeded at 524 with fuzz 2 (offset 25 lines).
+checking file drivers/misc/Makefile
+Hunk #1 succeeded at 10 with fuzz 2.
+Hunk #2 succeeded at 32 with fuzz 3 (offset 2 lines).
+checking file drivers/misc/binder.c
+checking file drivers/misc/kernel_debugger.c
+checking file drivers/misc/logger.c
+checking file drivers/misc/lowmemorykiller.c
+checking file drivers/misc/pmem.c
+checking file drivers/misc/ram_console.c
+checking file drivers/misc/timed_gpio.c
+checking file drivers/misc/timed_output.c
+checking file drivers/misc/uid_stat.c
+checking file drivers/mmc/card/Kconfig
+Hunk #1 succeeded at 32 with fuzz 1.
+checking file drivers/mmc/card/block.c
+Hunk #1 succeeded at 578 (offset -16 lines).
+checking file drivers/mmc/card/queue.c
+checking file drivers/mmc/card/queue.h
+checking file drivers/mmc/core/Kconfig
+checking file drivers/mmc/core/core.c
+Hunk #4 succeeded at 722 (offset 4 lines).
+Hunk #5 succeeded at 825 (offset 7 lines).
+Hunk #6 succeeded at 881 (offset 7 lines).
+checking file drivers/mmc/core/sd.c
+Hunk #1 succeeded at 346 (offset 10 lines).
+Hunk #2 succeeded at 460 (offset 10 lines).
+Hunk #3 succeeded at 586 (offset 31 lines).
+Hunk #4 succeeded at 653 (offset 31 lines).
+Hunk #5 succeeded at 710 (offset 31 lines).
+Hunk #6 succeeded at 761 (offset 31 lines).
+checking file drivers/mmc/core/sdio.c
+Hunk #2 succeeded at 318 (offset 30 lines).
+Hunk #3 succeeded at 360 with fuzz 3 (offset 30 lines).
+Hunk #4 succeeded at 425 (offset 51 lines).
+Hunk #5 succeeded at 487 (offset 51 lines).
+checking file drivers/mmc/core/sdio_bus.c
+checking file drivers/mmc/core/sdio_io.c
+checking file drivers/rtc/Kconfig
+checking file drivers/rtc/Makefile
+checking file drivers/rtc/alarm.c
+checking file drivers/rtc/class.c
+checking file drivers/switch/Kconfig
+checking file drivers/switch/Makefile
+checking file drivers/switch/switch_class.c
+checking file drivers/switch/switch_gpio.c
+checking file drivers/usb/Kconfig
+Hunk #1 succeeded at 152 (offset 5 lines).
+checking file drivers/usb/gadget/Kconfig
+Hunk #1 succeeded at 751 (offset 155 lines).
+checking file drivers/usb/gadget/Makefile
+Hunk #1 succeeded at 35 with fuzz 3.
+Hunk #2 succeeded at 62 (offset 13 lines).
+checking file drivers/usb/gadget/android.c
+checking file drivers/usb/gadget/f_adb.c
+checking file drivers/usb/gadget/f_adb.h
+checking file drivers/usb/gadget/f_mass_storage.c
+checking file drivers/usb/gadget/f_mass_storage.h
+checking file drivers/usb/otg/Kconfig
+checking file drivers/usb/otg/Makefile
+checking file drivers/usb/otg/gpio_vbus.c
+checking file drivers/usb/otg/isp1301_omap.c
+checking file drivers/usb/otg/otg.c
+checking file drivers/usb/otg/twl4030-usb.c
+checking file fs/Kconfig
+Hunk #1 succeeded at 1136 with fuzz 3.
+checking file fs/Makefile
+Reversed (or previously applied) patch detected!  Skipping patch.
+1 out of 1 hunk ignored
+checking file fs/fat/dir.c
+checking file fs/fat/inode.c
+Hunk #1 succeeded at 1238 (offset 62 lines).
+Hunk #2 succeeded at 1381 (offset 62 lines).
+Hunk #3 succeeded at 1398 (offset 62 lines).
+checking file fs/fs-writeback.c
+checking file fs/proc/base.c
+Hunk #1 succeeded at 130 (offset 1 line).
+Hunk #2 succeeded at 1052 (offset 7 lines).
+Hunk #3 succeeded at 2555 (offset 18 lines).
+checking file fs/proc/task_mmu.c
+Reversed (or previously applied) patch detected!  Skipping patch.
+1 out of 1 hunk ignored
+checking file fs/sync.c
+The next patch would create the file fs/yaffs2/Kconfig,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/Makefile,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/devextras.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/moduleconfig.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_checkptrw.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_checkptrw.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_ecc.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_ecc.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_fs.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_getblockinfo.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_guts.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_guts.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_mtdif.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_mtdif.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_mtdif1.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_mtdif1.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_mtdif2.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_mtdif2.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_nand.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_nand.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_nandemul2k.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_packedtags1.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_packedtags1.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_packedtags2.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_packedtags2.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_qsort.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_qsort.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_tagscompat.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_tagscompat.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_tagsvalidity.c,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffs_tagsvalidity.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yaffsinterface.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+The next patch would create the file fs/yaffs2/yportenv.h,
+which already exists!  Skipping patch.
+1 out of 1 hunk ignored
+checking file include/linux/akm8976.h
+checking file include/linux/android_aid.h
+checking file include/linux/android_alarm.h
+checking file include/linux/android_pmem.h
+checking file include/linux/ashmem.h
+checking file include/linux/binder.h
+checking file include/linux/earlysuspend.h
+checking file include/linux/gpio_event.h
+checking file include/linux/kernel_debugger.h
+checking file include/linux/keychord.h
+checking file include/linux/keyreset.h
+checking file include/linux/logger.h
+checking file include/linux/mm.h
+Hunk #1 succeeded at 571 (offset -1 lines).
+Hunk #2 succeeded at 710 (offset -1 lines).
+checking file include/linux/mmc/host.h
+Hunk #1 succeeded at 163 (offset 4 lines).
+Hunk #2 succeeded at 180 (offset 4 lines).
+checking file include/linux/mmc/sdio_func.h
+checking file include/linux/msdos_fs.h
+Hunk #1 succeeded at 99 (offset -5 lines).
+Hunk #2 succeeded at 137 (offset -5 lines).
+Hunk #3 succeeded at 181 with fuzz 3 (offset -68 lines).
+checking file include/linux/personality.h
+Reversed (or previously applied) patch detected!  Skipping patch.
+1 out of 1 hunk ignored
+checking file include/linux/security.h
+Hunk #1 succeeded at 2146 (offset 12 lines).
+checking file include/linux/sockios.h
+Hunk #1 succeeded at 114 (offset 49 lines).
+checking file include/linux/switch.h
+checking file include/linux/synaptics_i2c_rmi.h
+checking file include/linux/timed_gpio.h
+checking file include/linux/timed_output.h
+checking file include/linux/uid_stat.h
+checking file include/linux/usb/android.h
+checking file include/linux/usb/gpio_vbus.h
+checking file include/linux/wakelock.h
+checking file include/linux/wifi_tiwlan.h
+checking file include/net/bluetooth/hci.h
+checking file include/net/bluetooth/hci_core.h
+Hunk #1 succeeded at 348 (offset 1 line).
+checking file include/net/bluetooth/l2cap.h
+Hunk #2 succeeded at 258 with fuzz 3.
+checking file include/net/bluetooth/rfcomm.h
+checking file include/net/tcp.h
+Hunk #1 succeeded at 1359 (offset -8 lines).
+checking file init/Kconfig
+Hunk #1 succeeded at 541 with fuzz 1 (offset 14 lines).
+Hunk #2 succeeded at 726 with fuzz 2 (offset 7 lines).
+checking file kernel/panic.c
+checking file kernel/power/Kconfig
+checking file kernel/power/Makefile
+checking file kernel/power/console.c
+checking file kernel/power/consoleearlysuspend.c
+checking file kernel/power/earlysuspend.c
+checking file kernel/power/fbearlysuspend.c
+checking file kernel/power/main.c
+Hunk #1 succeeded at 391 (offset 7 lines).
+Hunk #2 succeeded at 511 (offset 7 lines).
+Hunk #3 succeeded at 537 (offset 7 lines).
+Hunk #4 succeeded at 578 (offset 7 lines).
+Hunk #5 succeeded at 591 (offset 7 lines).
+checking file kernel/power/power.h
+checking file kernel/power/process.c
+Hunk #2 succeeded at 37 (offset -115 lines).
+Hunk #3 succeeded at 64 (offset -115 lines).
+Hunk #4 succeeded at 83 (offset -115 lines).
+checking file kernel/power/userwakelock.c
+checking file kernel/power/wakelock.c
+checking file kernel/printk.c
+Reversed (or previously applied) patch detected!  Skipping patch.
+8 out of 8 hunks ignored
+checking file kernel/sched.c
+Hunk #1 FAILED at 8237.
+1 out of 1 hunk FAILED
+checking file kernel/sysctl.c
+Hunk #2 succeeded at 1045 (offset 20 lines).
+Hunk #3 succeeded at 1158 (offset 20 lines).
+Hunk #4 succeeded at 1166 (offset 20 lines).
+checking file mm/Kconfig
+Hunk #1 succeeded at 222 (offset 14 lines).
+checking file mm/Makefile
+checking file mm/ashmem.c
+checking file mm/mmap.c
+checking file mm/page_alloc.c
+Hunk #2 succeeded at 1245 (offset 14 lines).
+Hunk #3 succeeded at 2539 (offset 39 lines).
+Hunk #4 succeeded at 2581 (offset 39 lines).
+checking file mm/shmem.c
+Hunk #1 succeeded at 2587 with fuzz 2 (offset 4 lines).
+Hunk #2 succeeded at 2607 (offset 4 lines).
+checking file net/Kconfig
+Hunk #1 succeeded at 68 (offset 2 lines).
+checking file net/bluetooth/af_bluetooth.c
+Hunk #1 succeeded at 41 (offset -3 lines).
+Hunk #2 succeeded at 136 (offset -3 lines).
+checking file net/bluetooth/hci_conn.c
+checking file net/bluetooth/hci_event.c
+Hunk #2 succeeded at 1029 with fuzz 2 (offset 101 lines).
+Hunk #3 succeeded at 1654 (offset 2 lines).
+checking file net/bluetooth/l2cap.c
+Hunk #2 succeeded at 1636 with fuzz 2 (offset 1317 lines).
+Hunk #3 succeeded at 1955 with fuzz 2 (offset 1506 lines).
+Hunk #4 succeeded at 2571 with fuzz 3 (offset 1008 lines).
+Hunk #5 FAILED at 1636.
+Hunk #6 FAILED at 1710.
+Hunk #7 FAILED at 1948.
+Hunk #8 FAILED at 2199.
+Hunk #9 FAILED at 2219.
+Hunk #10 FAILED at 2289.
+6 out of 10 hunks FAILED
+checking file net/bluetooth/rfcomm/core.c
+Hunk #2 succeeded at 2007 (offset -2 lines).
+checking file net/ipv4/Makefile
+checking file net/ipv4/af_inet.c
+checking file net/ipv4/devinet.c
+Hunk #2 succeeded at 642 (offset 1 line).
+Hunk #3 succeeded at 692 (offset 1 line).
+Hunk #4 succeeded at 817 (offset 1 line).
+checking file net/ipv4/sysfs_net_ipv4.c
+checking file net/ipv4/tcp_ipv4.c
+Hunk #1 succeeded at 1857 (offset 9 lines).
+checking file net/ipv6/af_inet6.c
+Hunk #1 succeeded at 62 (offset 1 line).
+Hunk #2 succeeded at 83 (offset 1 line).
+Hunk #3 succeeded at 118 (offset 1 line).
+Hunk #4 succeeded at 172 (offset 1 line).
+checking file net/rfkill/Kconfig
+checking file net/rfkill/rfkill.c
+Hunk #1 succeeded at 508 with fuzz 1 (offset 74 lines).
+checking file net/socket.c
+Hunk #1 succeeded at 98 with fuzz 2 (offset 1 line).
+Hunk #2 succeeded at 566 (offset 1 line).
+Hunk #3 succeeded at 654 (offset 2 lines).
+Hunk #4 succeeded at 713 (offset 4 lines).
+checking file security/Kconfig
+Reversed (or previously applied) patch detected!  Skipping patch.
+1 out of 1 hunk ignored
+checking file security/security.c

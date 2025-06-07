@@ -1,3 +1,13 @@
+config WRNOTE
+	bool "Add extra notes to ELF coredumps for enhanced debugging"
+	depends on BINFMT_ELF
+	help
+	  Selecting this option adds three notes to a core dump.
+	  - NT_WR_KERNEL_INFO: holds information on OS version, BSP name, CPU
+	    numbers
+	  - NT_WR_PRPSINFO: holds pr_gid, pr_pid, pr_ppid, pr_fname, and
+	    pr_psargs
+	  - NT_WR_PRSTATUS: holdspr_cursig, pr_pid, pr_ppid, pr_reg, pr_fpreg
 
 config PRINTK_TIME
 	bool "Show timing information on printks"
@@ -8,6 +18,16 @@ config PRINTK_TIME
 	  the interval between kernel operations, including bootup
 	  operations.  This is useful for identifying long delays
 	  in kernel startup.
+
+config WR_OCD_DEBUG
+	bool "WR_OCD_DEBUG: Debugging with WindRiver System OCD"
+	select DEBUG_INFO
+	select BDI_SWITCH
+	help
+	  If you say Y here, WindRiver OCD tool can get module symbols
+	  for module debug. It will also disable any potential manipulation
+	  of the debug control register, which is generally done by further
+	  selecting CONFIG_BDI_SWITCH. If unsure, say N.
 
 config ENABLE_WARN_DEPRECATED
 	bool "Enable __deprecated logic"
@@ -394,7 +414,7 @@ config LOCKDEP
 	bool
 	depends on DEBUG_KERNEL && TRACE_IRQFLAGS_SUPPORT && STACKTRACE_SUPPORT && LOCKDEP_SUPPORT
 	select STACKTRACE
-	select FRAME_POINTER if !X86 && !MIPS && !PPC
+	select FRAME_POINTER if !X86 && !MIPS && !PPC && !ARM_UNWIND
 	select KALLSYMS
 	select KALLSYMS_ALL
 
@@ -475,7 +495,8 @@ config DEBUG_BUGVERBOSE
 
 config DEBUG_INFO
 	bool "Compile the kernel with debug info"
-	depends on DEBUG_KERNEL
+	depends on DEBUG_KERNEL || WR_OCD_DEBUG
+	default y if WR_OCD_DEBUG
 	help
           If you say Y here the resulting kernel image will include
 	  debugging info resulting in a larger kernel image.
@@ -739,6 +760,14 @@ config FAULT_INJECTION_STACKTRACE_FILTER
 	select FRAME_POINTER if !PPC
 	help
 	  Provide stacktrace filter for fault-injection capabilities
+
+config HAVE_PSRWLOCK_ASM_CALL
+	def_bool n
+
+config PSRWLOCK_LATENCY_TEST
+	boolean "Testing API for psrwlock latency test"
+	depends on HAVE_GET_CYCLES
+	help
 
 config LATENCYTOP
 	bool "Latency measuring infrastructure"

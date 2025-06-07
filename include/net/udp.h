@@ -180,7 +180,11 @@ extern struct sock *udp4_lib_lookup(struct net *net, __be32 saddr, __be16 sport,
 			UDP6_INC_STATS_BH(sock_net(sk), field, 0); \
 	} while (0);
 #else
+#ifdef CONFIG_INTERPEAK
+#define UDPX_INC_STATS_BH(sk, field)
+#else
 #define UDPX_INC_STATS_BH(sk, field) UDP_INC_STATS_BH(sock_net(sk), field, 0)
+#endif /* CONFIG_INTERPEAK */
 #endif
 
 /* /proc */

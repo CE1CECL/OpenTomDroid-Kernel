@@ -14,6 +14,11 @@
  */
 
 #include <linux/serial_8250.h>
+#include <linux/serial_reg.h>
+
+
+#define RFE_ERR_BITS ( UART_LSR_RFE | UART_LSR_TEMT | \
+			UART_LSR_THRE | UART_LSR_BI | UART_LSR_DR )
 
 struct old_serial_port {
 	unsigned int uart;
@@ -48,6 +53,7 @@ struct serial8250_config {
 #define UART_BUG_TXEN	(1 << 1)	/* UART has buggy TX IIR status */
 #define UART_BUG_NOMSR	(1 << 2)	/* UART has buggy MSR status bits (Au1x00) */
 #define UART_BUG_THRE	(1 << 3)	/* UART has buggy THRE reassertion */
+#define UART_BUG_PPC	(1 << 4)	/* UART has buggy PPC break IRQ storm */
 
 #define PROBE_RSA	(1 << 0)
 #define PROBE_ANY	(~0)
@@ -77,3 +83,12 @@ struct serial8250_config {
 #else
 #define ALPHA_KLUDGE_MCR 0
 #endif
+
+#ifdef CONFIG_SERIAL_8250_PPC_BUG
+#define UART_KNOWN_BUGS UART_BUG_PPC
+#endif
+
+#ifndef UART_KNOWN_BUGS
+#define UART_KNOWN_BUGS 0
+#endif
+

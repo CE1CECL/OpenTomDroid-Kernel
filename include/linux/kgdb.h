@@ -267,8 +267,46 @@ extern int kgdb_register_io_module(struct kgdb_io *local_kgdb_io_ops);
 extern void kgdb_unregister_io_module(struct kgdb_io *local_kgdb_io_ops);
 
 extern int kgdb_hex2long(char **ptr, unsigned long *long_val);
-extern int kgdb_mem2hex(char *mem, char *buf, int count);
-extern int kgdb_hex2mem(char *buf, char *mem, int count);
+
+/**
+ *      kgdb_mem2hex - (optional arch override) translate bin to hex chars
+ *      @mem: source buffer
+ *      @buf: target buffer
+ *      @count: number of bytes in mem
+ *
+ *      Architectures which do not support probe_kernel_(read|write),
+ *      can make an alternate implementation of this function.
+ *      This function safely reads memory into hex
+ *      characters for use with the kgdb protocol.
+ */
+extern int __weak kgdb_mem2hex(char *mem, char *buf, int count);
+
+/**
+ *      kgdb_hex2mem - (optional arch override) translate hex chars to bin
+ *      @buf: source buffer
+ *      @mem: target buffer
+ *      @count: number of bytes in mem
+ *
+ *      Architectures which do not support probe_kernel_(read|write),
+ *      can make an alternate implementation of this function.
+ *      This function safely writes hex characters into memory
+ *      for use with the kgdb protocol.
+ */
+extern int __weak kgdb_hex2mem(char *buf, char *mem, int count);
+
+/**
+ *      kgdb_ebin2mem - (optional arch override) Copy the binary array
+ *     pointed to by buf into mem.
+ *      @buf: source buffer
+ *      @mem: target buffer
+ *      @count: number of bytes in mem
+ *
+ *      Architectures which do not support probe_kernel_(read|write),
+ *      can make an alternate implementation of this function.
+ *      This function safely copies binary array into memory
+ *      for use with the kgdb protocol.
+ */
+extern int __weak kgdb_ebin2mem(char *buf, char *mem, int count);
 
 extern int kgdb_isremovedbreak(unsigned long addr);
 
@@ -279,5 +317,6 @@ extern int kgdb_nmicallback(int cpu, void *regs);
 
 extern int			kgdb_single_step;
 extern atomic_t			kgdb_active;
+extern void kgdb_schedule_breakpoint(void);
 
 #endif /* _KGDB_H_ */

@@ -165,4 +165,16 @@ void oprofile_put_buff(unsigned long *buf, unsigned int start,
 unsigned long oprofile_get_cpu_buffer_size(void);
 void oprofile_cpu_buffer_inc_smpl_lost(void);
  
+/* Set and get the flag indicating that the oprofile device reader expects
+ *  backtraces across the system call
+ */
+int oprofile_set_trace_thru_syscall(unsigned int enable);
+int oprofile_get_trace_thru_syscall(void);
+
+/*
+ * Add an escape code to the cpu buffer indicate switching into
+ * user space during tracing across the system call boundary
+ */
+int oprofile_syscall_trace_boundary(void);
+
 #endif /* OPROFILE_H */

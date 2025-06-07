@@ -47,6 +47,15 @@ enum
 	FRA_UNUSED8,
 	FRA_TABLE,	/* Extended table id */
 	FRA_FWMASK,	/* mask for netfilter mark */
+/* CONFIG INTERPEAK >>> */
+	FRA_PROTOCOL     = 32,
+	FRA_SCOPE,
+	FRA_PKTRULE,
+	FRA_PKTMASK,
+	FRA_EXTACT,
+	FRA_VR,
+	FRA_ID,
+/* <<< CONFIG INTERPEAK */
 	__FRA_MAX
 };
 

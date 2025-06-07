@@ -70,6 +70,7 @@ struct nfs_client {
 	char			cl_ipaddr[48];
 	unsigned char		cl_id_uniquifier;
 #endif
+	int			    nfs_prog;
 };
 
 /*

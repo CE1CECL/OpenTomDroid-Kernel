@@ -168,6 +168,24 @@ int down_timeout(struct semaphore *sem, long jiffies)
 }
 EXPORT_SYMBOL(down_timeout);
 
+#ifdef CONFIG_INTERPEAK
+int down_timeout_interruptible(struct semaphore *sem, long jiffies)
+{
+	unsigned long flags;
+	int result = 0;
+
+	spin_lock_irqsave(&sem->lock, flags);
+	if (likely(sem->count > 0))
+		sem->count--;
+	else
+		result = __down_timeout(sem, jiffies);
+	spin_unlock_irqrestore(&sem->lock, flags);
+
+	return result;
+}
+EXPORT_SYMBOL(down_timeout_interruptible);
+#endif
+
 /**
  * up - release the semaphore
  * @sem: the semaphore to release
@@ -252,6 +270,13 @@ static noinline int __sched __down_timeout(struct semaphore *sem, long jiffies)
 {
 	return __down_common(sem, TASK_UNINTERRUPTIBLE, jiffies);
 }
+
+#ifdef CONFIG_INTERPEAK
+static noinline int __sched __down_timeout_interruptible(struct semaphore *sem, long jiffies)
+{
+	return __down_common(sem, TASK_INTERRUPTIBLE, jiffies);
+}
+#endif
 
 static noinline void __sched __up(struct semaphore *sem)
 {

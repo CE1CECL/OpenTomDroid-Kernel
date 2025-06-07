@@ -176,6 +176,8 @@ int spi_bitbang_setup_transfer(struct spi_device *spi, struct spi_transfer *t)
 }
 EXPORT_SYMBOL_GPL(spi_bitbang_setup_transfer);
 
+
+#warning disabled spinlock in spi_bitbang_setup()
 /**
  * spi_bitbang_setup - default setup for per-word I/O loops
  */
@@ -223,12 +225,12 @@ int spi_bitbang_setup(struct spi_device *spi)
 	 */
 
 	/* deselect chip (low or high) */
-	spin_lock_irqsave(&bitbang->lock, flags);
+	/*!!!!! spin_lock_irqsave(&bitbang->lock, flags);*/
 	if (!bitbang->busy) {
 		bitbang->chipselect(spi, BITBANG_CS_INACTIVE);
 		ndelay(cs->nsecs);
 	}
-	spin_unlock_irqrestore(&bitbang->lock, flags);
+	/*!!!!! spin_unlock_irqrestore(&bitbang->lock, flags);*/
 
 	return 0;
 }

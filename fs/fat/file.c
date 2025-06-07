@@ -389,4 +389,5 @@ const struct inode_operations fat_file_inode_operations = {
 	.truncate	= fat_truncate,
 	.setattr	= fat_setattr,
 	.getattr	= fat_getattr,
+	.fiemap		= fat_fiemap,
 };

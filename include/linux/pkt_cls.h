@@ -380,6 +380,21 @@ enum
 
 #define TCA_FLOW_MAX	(__TCA_FLOW_MAX - 1)
 
+/* Cgroups filter */
+
+enum {
+	TCA_CGROUP_UNSPEC,
+	TCA_CGROUP_CLASSID,
+	TCA_CGROUP_MASK,
+	TCA_CGROUP_VALUE,
+	TCA_CGROUP_ACT,
+	TCA_CGROUP_POLICE,
+	TCA_CGROUP_EMATCHES,
+	__TCA_CGROUP_MAX
+};
+
+#define TCA_CGROUP_MAX	(__TCA_CGROUP_MAX - 1)
+
 /* Basic filter */
 
 enum

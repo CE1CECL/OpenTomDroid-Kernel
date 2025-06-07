@@ -200,4 +200,44 @@ config CRYPTO_DEV_IXP4XX
 	help
 	  Driver for the IXP4xx NPE crypto engine.
 
+config CRYPTO_DEV_BCM476X_SPU
+	tristate "Broadcom SPU-M hardware accelerator"
+   depends on PLAT_BCM476X
+	help
+	  Security Protocol Unit - Mobile version
+
+config CRYPTO_DEV_SHA1_SPU
+	tristate "SHA1 Broadcom SPU-M hardware accelerated digest algorithm"
+   depends on PLAT_BCM476X
+	select CRYPTO_ALGAPI
+	select CRYPTO_DEV_BCM476X_SPU
+	help
+	  SHA-1 secure hash standard (FIPS 180-1/DFIPS 180-2).
+
+config CRYPTO_DEV_MD5_SPU
+	tristate "MD5 Broadcom SPU-M hardware accelerated digest algorithm"
+   depends on PLAT_BCM476X
+	select CRYPTO_ALGAPI
+	select CRYPTO_DEV_BCM476X_SPU
+	help
+	  MD5 message digest algorithm (RFC1321).     
+
+
+config CRYPTO_DEV_AES_SPU
+	tristate "AES Broadcom SPU-M hardware accelerated cipher algorithms"
+   depends on PLAT_BCM476X
+	select CRYPTO_ALGAPI
+	select CRYPTO_DEV_BCM476X_SPU
+	help
+	  AES cipher algorithms (FIPS-197). AES uses the Rijndael
+	  algorithm.
+
+config CRYPTO_DEV_DES_SPU
+	tristate "DES and Triple DES Broadcom SPU-M hardware accelerated cipher algorithms"
+   depends on PLAT_BCM476X
+	select CRYPTO_ALGAPI
+	select CRYPTO_DEV_BCM476X_SPU
+	help
+	  DES and Triple DES EDE cipher algorithms
+
 endif # CRYPTO_HW

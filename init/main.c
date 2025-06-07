@@ -62,6 +62,7 @@
 #include <linux/sched.h>
 #include <linux/signal.h>
 #include <linux/idr.h>
+#include <linux/immediate.h>
 #include <linux/ftrace.h>
 
 #include <asm/io.h>
@@ -100,9 +101,21 @@ static inline void acpi_early_init(void) { }
 #ifndef CONFIG_DEBUG_RODATA
 static inline void mark_rodata_ro(void) { }
 #endif
+#ifdef USE_IMMEDIATE
+extern void imv_init_complete(void);
+#else
+static inline void imv_init_complete(void) { }
+#endif
 
 #ifdef CONFIG_TC
 extern void tc_init(void);
+#endif
+
+#ifdef CONFIG_FTRACE_EARLY
+extern int tracer_alloc_buffers(void);
+extern int init_function_trace(void);
+extern int tracing_early_ctrl_write(unsigned int val);
+extern int init_early_trace(void);
 #endif
 
 enum system_states system_state;
@@ -554,6 +567,7 @@ asmlinkage void __init start_kernel(void)
 	lockdep_init();
 	debug_objects_early_init();
 	cgroup_init_early();
+	core_imv_update();
 
 	local_irq_disable();
 	early_boot_irqs_off();
@@ -653,6 +667,10 @@ asmlinkage void __init start_kernel(void)
 	enable_debug_pagealloc();
 	cpu_hotplug_init();
 	kmem_cache_init();
+#ifdef CONFIG_FTRACE_EARLY
+	tracer_alloc_buffers();
+	init_early_trace();
+#endif
 	debug_objects_mem_init();
 	idr_init_cache();
 	setup_per_cpu_pageset();
@@ -686,6 +704,7 @@ asmlinkage void __init start_kernel(void)
 	cpuset_init();
 	taskstats_init_early();
 	delayacct_init();
+	imv_init_complete();
 
 	check_bugs();
 
@@ -785,8 +804,11 @@ static void __init do_pre_smp_initcalls(void)
 
 static void run_init_process(char *init_filename)
 {
+	long ret;
+
 	argv_init[0] = init_filename;
-	kernel_execve(init_filename, argv_init, envp_init);
+	ret = kernel_execve(init_filename, argv_init, envp_init);
+	printk(KERN_INFO "%s exit code: %ld\n", init_filename, ret);
 }
 
 /* This is a non __init function. Force it to be noinline otherwise gcc
@@ -794,11 +816,20 @@ static void run_init_process(char *init_filename)
  */
 static int noinline init_post(void)
 {
+	struct stat console_stat;
+
+	imv_unref_core_init();
 	free_initmem();
 	unlock_kernel();
 	mark_rodata_ro();
 	system_state = SYSTEM_RUNNING;
 	numa_default_policy();
+
+	/* Use /dev/console to infer if the rootfs is setup properly */
+	if (sys_newlstat((char __user *) "/dev/console", (struct stat __user *) &console_stat)
+			|| !S_ISCHR(console_stat.st_mode)) {
+		panic("/dev/console is missing or not a character device!\nPlease ensure your rootfs is properly configured\n");
+	}
 
 	if (sys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)
 		printk(KERN_WARNING "Warning: unable to open an initial console.\n");
@@ -864,6 +895,9 @@ static int __init kernel_init(void * unused)
 
 	do_basic_setup();
 
+#ifdef CONFIG_FTRACE_EARLY
+	tracing_early_ctrl_write(0);
+#endif
 	/*
 	 * check if there is an early userspace init.  If yes, let it do all
 	 * the work

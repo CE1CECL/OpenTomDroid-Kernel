@@ -20,6 +20,7 @@
 #include <linux/res_counter.h>
 #include <linux/memcontrol.h>
 #include <linux/cgroup.h>
+#include <linux/biocontrol.h>
 #include <linux/mm.h>
 #include <linux/smp.h>
 #include <linux/page-flags.h>
@@ -37,7 +38,6 @@
 
 #include <asm/uaccess.h>
 
-struct cgroup_subsys mem_cgroup_subsys __read_mostly;
 #define MEM_CGROUP_RECLAIM_RETRIES	5
 
 /*
@@ -54,6 +54,19 @@ enum mem_cgroup_stat_index {
 
 	MEM_CGROUP_STAT_NSTATS,
 };
+
+static void __mem_cgroup_uncharge_common(struct page *, enum charge_type);
+
+static struct kmem_cache *page_cgroup_cache __read_mostly;
+
+#ifdef CONFIG_CGROUP_MEM_RES_CTLR
+struct cgroup_subsys mem_cgroup_subsys __read_mostly;
+#define MEM_CGROUP_RECLAIM_RETRIES    5
+
+static inline int mem_cgroup_disabled(void)
+{
+	return mem_cgroup_subsys.disabled;
+}
 
 struct mem_cgroup_stat_cpu {
 	s64 count[MEM_CGROUP_STAT_NSTATS];
@@ -309,6 +322,26 @@ static void __mem_cgroup_move_lists(struct page_cgroup *pc, enum lru_list lru)
 	list_move(&pc->lru, &mz->lists[lru]);
 }
 
+static inline void mem_cgroup_add_page(struct page_cgroup *pc)
+{
+	struct mem_cgroup_per_zone *mz = page_cgroup_zoneinfo(pc);
+	unsigned long flags;
+
+	spin_lock_irqsave(&mz->lru_lock, flags);
+	__mem_cgroup_add_list(mz, pc);
+	spin_unlock_irqrestore(&mz->lru_lock, flags);
+}
+
+static inline void mem_cgroup_remove_page(struct page_cgroup *pc)
+{
+	struct mem_cgroup_per_zone *mz = page_cgroup_zoneinfo(pc);
+	unsigned long flags;
+
+	spin_lock_irqsave(&mz->lru_lock, flags);
+	__mem_cgroup_remove_list(mz, pc);
+	spin_unlock_irqrestore(&mz->lru_lock, flags);
+}
+
 int task_in_mem_cgroup(struct task_struct *task, const struct mem_cgroup *mem)
 {
 	int ret;
@@ -328,7 +361,7 @@ void mem_cgroup_move_lists(struct page *page, enum lru_list lru)
 	struct mem_cgroup_per_zone *mz;
 	unsigned long flags;
 
-	if (mem_cgroup_subsys.disabled)
+	if (mem_cgroup_disabled())
 		return;
 
 	/*
@@ -348,6 +381,36 @@ void mem_cgroup_move_lists(struct page *page, enum lru_list lru)
 		spin_unlock_irqrestore(&mz->lru_lock, flags);
 	}
 	unlock_page_cgroup(pc);
+}
+
+static inline int mem_cgroup_try_to_allocate(struct mem_cgroup *mem,
+						gfp_t gfp_mask)
+{
+	unsigned long nr_retries = MEM_CGROUP_RECLAIM_RETRIES;
+
+	while (res_counter_charge(&mem->res, PAGE_SIZE)) {
+		if (!(gfp_mask & __GFP_WAIT))
+			return -1;
+
+		if (try_to_free_mem_cgroup_pages(mem, gfp_mask))
+			continue;
+
+		/*
+		 * try_to_free_mem_cgroup_pages() might not give us a full
+		 * picture of reclaim. Some pages are reclaimed and might be
+		 * moved to swap cache or just unmapped from the cgroup.
+		 * Check the limit again to see if the reclaim reduced the
+		 * current usage of the cgroup before giving up
+		 */
+		if (res_counter_check_under_limit(&mem->res))
+			continue;
+
+		if (!nr_retries--) {
+			mem_cgroup_out_of_memory(mem, gfp_mask);
+			return -1;
+		}
+	}
+	return 0;
 }
 
 /*
@@ -754,18 +817,13 @@ int mem_cgroup_shrink_usage(struct mm_struct *mm, gfp_t gfp_mask)
 	int progress = 0;
 	int retry = MEM_CGROUP_RECLAIM_RETRIES;
 
-	if (mem_cgroup_subsys.disabled)
+	if (mem_cgroup_disabled())
 		return 0;
 	if (!mm)
 		return 0;
 
 	rcu_read_lock();
-	mem = mem_cgroup_from_task(rcu_dereference(mm->owner));
-	if (unlikely(!mem)) {
-		rcu_read_unlock();
-		return 0;
-	}
-	css_get(&mem->css);
+	mem = mm_get_mem_cgroup(mm);
 	rcu_read_unlock();
 
 	do {
@@ -773,7 +831,7 @@ int mem_cgroup_shrink_usage(struct mm_struct *mm, gfp_t gfp_mask)
 		progress += res_counter_check_under_limit(&mem->res);
 	} while (!progress && --retry);
 
-	css_put(&mem->css);
+	put_mem_cgroup(mem);
 	if (!retry)
 		return -ENOMEM;
 	return 0;
@@ -858,7 +916,7 @@ static int mem_cgroup_force_empty(struct mem_cgroup *mem)
 	int ret = -EBUSY;
 	int node, zid;
 
-	css_get(&mem->css);
+	get_mem_cgroup(mem);
 	/*
 	 * page reclaim code (kswapd etc..) will move pages between
 	 * active_list <-> inactive_list while we don't take a lock.
@@ -881,7 +939,7 @@ static int mem_cgroup_force_empty(struct mem_cgroup *mem)
 	}
 	ret = 0;
 out:
-	css_put(&mem->css);
+	put_mem_cgroup(mem);
 	return ret;
 }
 
@@ -1089,6 +1147,7 @@ mem_cgroup_create(struct cgroup_subsys *ss, struct cgroup *cont)
 
 	if (unlikely((cont->parent) == NULL)) {
 		mem = &init_mem_cgroup;
+		page_cgroup_init();
 	} else {
 		mem = mem_cgroup_alloc();
 		if (!mem)
@@ -1172,3 +1231,316 @@ struct cgroup_subsys mem_cgroup_subsys = {
 	.attach = mem_cgroup_move_task,
 	.early_init = 0,
 };
+
+#else /* CONFIG_CGROUP_MEM_RES_CTLR */
+
+struct mem_cgroup;
+
+static inline int mem_cgroup_disabled(void)
+{
+	return 1;
+}
+
+static inline void mem_cgroup_add_page(struct page_cgroup *pc) {}
+static inline void mem_cgroup_remove_page(struct page_cgroup *pc) {}
+static inline void get_mem_cgroup(struct mem_cgroup *mem) {}
+static inline void put_mem_cgroup(struct mem_cgroup *mem) {}
+static inline void set_mem_cgroup(struct page_cgroup *pc,
+					struct mem_cgroup *mem) {}
+static inline void clear_mem_cgroup(struct page_cgroup *pc) {}
+
+static inline struct mem_cgroup *get_mem_page_cgroup(struct page_cgroup *pc)
+{
+	return NULL;
+}
+
+static inline struct mem_cgroup *mm_get_mem_cgroup(struct mm_struct *mm)
+{
+	return NULL;
+}
+
+static inline int mem_cgroup_try_to_allocate(struct mem_cgroup *mem,
+					gfp_t gfp_mask)
+{
+	return 0;
+}
+
+#endif /* CONFIG_CGROUP_MEM_RES_CTLR */
+
+static inline void get_mem_cgroup(struct mem_cgroup *mem)
+{
+	css_get(&mem->css);
+}
+
+static inline void put_mem_cgroup(struct mem_cgroup *mem)
+{
+	css_put(&mem->css);
+}
+
+static inline void set_mem_cgroup(struct page_cgroup *pc, struct mem_cgroup *mem)
+{
+	pc->mem_cgroup = mem;
+}
+
+static inline void clear_mem_cgroup(struct page_cgroup *pc)
+{
+	struct mem_cgroup *mem = pc->mem_cgroup;
+	res_counter_uncharge(&mem->res, PAGE_SIZE);
+	pc->mem_cgroup = NULL;
+	put_mem_cgroup(mem);
+}
+
+static inline struct mem_cgroup *get_mem_page_cgroup(struct page_cgroup *pc)
+{
+	struct mem_cgroup *mem = pc->mem_cgroup;
+	css_get(&mem->css);
+	return mem;
+}
+
+/* This sould be called in an RCU-protected section. */
+static inline struct mem_cgroup *mm_get_mem_cgroup(struct mm_struct *mm)
+{
+	struct mem_cgroup *mem;
+
+	mem = mem_cgroup_from_task(rcu_dereference(mm->owner));
+	get_mem_cgroup(mem);
+	return mem;
+}
+
+/*
+ * Charge the memory controller for page usage.
+ * Return
+ * 0 if the charge was successful
+ * < 0 if the cgroup is over its limit
+ */
+static int mem_cgroup_charge_common(struct page *page, struct mm_struct *mm,
+			gfp_t gfp_mask, enum charge_type ctype,
+			struct mem_cgroup *memcg, struct bio_cgroup *biocg)
+{
+	struct page_cgroup *pc;
+	struct mem_cgroup *mem;
+	struct bio_cgroup *biog;
+
+	pc = kmem_cache_alloc(page_cgroup_cache, gfp_mask);
+	if (unlikely(pc == NULL))
+		goto err;
+
+	/*
+	 * We always charge the cgroup the mm_struct belongs to.
+	 * The mm_struct's mem_cgroup changes on task migration if the
+	 * thread group leader migrates. It's possible that mm is not
+	 * set, if so charge the init_mm (happens for pagecache usage).
+	 */
+	rcu_read_lock();
+	mem = memcg ? memcg : mm_get_mem_cgroup(mm);
+	biog = biocg ? biocg : mm_get_bio_cgroup(mm);
+	rcu_read_unlock();
+
+	if (mem_cgroup_try_to_allocate(mem, gfp_mask) < 0)
+		goto out;
+	set_mem_cgroup(pc, mem);
+	set_bio_cgroup(pc, biog);
+	pc->page = page;
+	/*
+	 * If a page is accounted as a page cache, insert to inactive list.
+	 * If anon, insert to active list.
+	 */
+	if (ctype == MEM_CGROUP_CHARGE_TYPE_CACHE) {
+		pc->flags = PAGE_CGROUP_FLAG_CACHE;
+		pc->flags |= PAGE_CGROUP_FLAG_FILE; /* fix me here czm*/
+	} else
+		pc->flags = PAGE_CGROUP_FLAG_ACTIVE;
+
+	lock_page_cgroup(page);
+	if (unlikely(page_get_page_cgroup(page))) {
+		unlock_page_cgroup(page);
+		clear_mem_cgroup(pc);
+		clear_bio_cgroup(pc);
+		kmem_cache_free(page_cgroup_cache, pc);
+		goto done;
+	}
+	page_assign_page_cgroup(page, pc);
+
+	mem_cgroup_add_page(pc);
+	bio_cgroup_add_page(pc);
+
+	unlock_page_cgroup(page);
+done:
+	return 0;
+out:
+	put_mem_cgroup(mem);
+	put_bio_cgroup(biog);
+	kmem_cache_free(page_cgroup_cache, pc);
+err:
+	return -ENOMEM;
+}
+
+int mem_cgroup_charge(struct page *page, struct mm_struct *mm, gfp_t gfp_mask)
+{
+	if (mem_cgroup_disabled())
+		return 0;
+
+	/*
+	 * If already mapped, we don't have to account.
+	 * If page cache, page->mapping has address_space.
+	 * But page->mapping may have out-of-use anon_vma pointer,
+	 * detecit it by PageAnon() check. newly-mapped-anon's page->mapping
+	 * is NULL.
+	 */
+	if (page_mapped(page) || (page->mapping && !PageAnon(page)))
+		return 0;
+	if (unlikely(!mm))
+		mm = &init_mm;
+	return mem_cgroup_charge_common(page, mm, gfp_mask,
+				MEM_CGROUP_CHARGE_TYPE_MAPPED, NULL, NULL);
+}
+
+int mem_cgroup_cache_charge(struct page *page, struct mm_struct *mm,
+				gfp_t gfp_mask)
+{
+	if (mem_cgroup_disabled())
+		return 0;
+
+	/*
+	 * Corner case handling. This is called from add_to_page_cache()
+	 * in usual. But some FS (shmem) precharges this page before calling it
+	 * and call add_to_page_cache() with GFP_NOWAIT.
+	 *
+	 * For GFP_NOWAIT case, the page may be pre-charged before calling
+	 * add_to_page_cache(). (See shmem.c) check it here and avoid to call
+	 * charge twice. (It works but has to pay a bit larger cost.)
+	 */
+	if (!(gfp_mask & __GFP_WAIT)) {
+		struct page_cgroup *pc;
+
+		lock_page_cgroup(page);
+		pc = page_get_page_cgroup(page);
+		if (pc) {
+			VM_BUG_ON(pc->page != page);
+			VM_BUG_ON(!pc->mem_cgroup);
+			unlock_page_cgroup(page);
+			return 0;
+		}
+		unlock_page_cgroup(page);
+	}
+
+	if (unlikely(!mm))
+		mm = &init_mm;
+
+	return mem_cgroup_charge_common(page, mm, gfp_mask,
+				MEM_CGROUP_CHARGE_TYPE_CACHE, NULL, NULL);
+}
+
+/*
+ * uncharge if !page_mapped(page)
+ */
+static void
+__mem_cgroup_uncharge_common(struct page *page, enum charge_type ctype)
+{
+	struct page_cgroup *pc;
+
+	if (mem_cgroup_disabled() && bio_cgroup_disabled())
+		return;
+
+	/*
+	 * Check if our page_cgroup is valid
+	 */
+	lock_page_cgroup(page);
+	pc = page_get_page_cgroup(page);
+	if (unlikely(!pc))
+		goto unlock;
+
+	VM_BUG_ON(pc->page != page);
+
+	if ((ctype == MEM_CGROUP_CHARGE_TYPE_MAPPED)
+	    && ((pc->flags & PAGE_CGROUP_FLAG_CACHE)
+		|| page_mapped(page)))
+		goto unlock;
+
+	mem_cgroup_remove_page(pc);
+	bio_cgroup_remove_page(pc);
+
+	page_assign_page_cgroup(page, NULL);
+	unlock_page_cgroup(page);
+
+	clear_mem_cgroup(pc);
+	clear_bio_cgroup(pc);
+
+	kmem_cache_free(page_cgroup_cache, pc);
+	return;
+unlock:
+	unlock_page_cgroup(page);
+}
+
+void mem_cgroup_uncharge_page(struct page *page)
+{
+	__mem_cgroup_uncharge_common(page, MEM_CGROUP_CHARGE_TYPE_MAPPED);
+}
+
+void mem_cgroup_uncharge_cache_page(struct page *page)
+{
+	VM_BUG_ON(page_mapped(page));
+	VM_BUG_ON(page->mapping);
+	__mem_cgroup_uncharge_common(page, MEM_CGROUP_CHARGE_TYPE_CACHE);
+}
+
+/*
+ * Before starting migration, account against new page.
+ */
+int mem_cgroup_prepare_migration(struct page *page, struct page *newpage)
+{
+	struct page_cgroup *pc;
+	struct mem_cgroup *mem = NULL;
+	struct bio_cgroup *biog = NULL;
+	enum charge_type ctype = MEM_CGROUP_CHARGE_TYPE_MAPPED;
+	int ret = 0;
+
+	if (mem_cgroup_disabled() && bio_cgroup_disabled())
+		return 0;
+
+	lock_page_cgroup(page);
+	pc = page_get_page_cgroup(page);
+	if (pc) {
+		mem = get_mem_page_cgroup(pc);
+		biog = get_bio_page_cgroup(pc);
+		if (pc->flags & PAGE_CGROUP_FLAG_CACHE)
+			ctype = MEM_CGROUP_CHARGE_TYPE_CACHE;
+	}
+	unlock_page_cgroup(page);
+	if (pc) {
+		ret = mem_cgroup_charge_common(newpage, NULL, GFP_KERNEL,
+			ctype, mem, biog);
+		if (mem)
+			put_mem_cgroup(mem);
+		if (biog)
+			put_bio_cgroup(biog);
+	}
+	return ret;
+}
+
+/* remove redundant charge if migration failed*/
+void mem_cgroup_end_migration(struct page *newpage)
+{
+	/*
+	 * At success, page->mapping is not NULL.
+	 * special rollback care is necessary when
+	 * 1. at migration failure. (newpage->mapping is cleared in this case)
+	 * 2. the newpage was moved but not remapped again because the task
+	 *    exits and the newpage is obsolete. In this case, the new page
+	 *    may be a swapcache. So, we just call mem_cgroup_uncharge_page()
+	 *    always for avoiding mess. The  page_cgroup will be removed if
+	 *    unnecessary. File cache pages is still on radix-tree. Don't
+	 *    care it.
+	 */
+	if (!newpage->mapping)
+		__mem_cgroup_uncharge_common(newpage,
+					 MEM_CGROUP_CHARGE_TYPE_FORCE);
+	else if (PageAnon(newpage))
+		mem_cgroup_uncharge_page(newpage);
+}
+
+void page_cgroup_init()
+{
+	if (!page_cgroup_cache)
+		page_cgroup_cache = KMEM_CACHE(page_cgroup, SLAB_PANIC);
+}

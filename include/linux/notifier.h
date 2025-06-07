@@ -199,6 +199,10 @@ static inline int notifier_to_errno(int ret)
 #define NETDEV_FEAT_CHANGE	0x000B
 #define NETDEV_BONDING_FAILOVER 0x000C
 
+/* CONFIG INTERPEAK >>> */
+#define NETDEV_CHANGEFLAG	0x000D
+/* <<< CONFIG INTERPEAK */
+
 #define SYS_DOWN	0x0001	/* Notify of system down */
 #define SYS_RESTART	SYS_DOWN
 #define SYS_HALT	0x0002	/* Notify of system halt */

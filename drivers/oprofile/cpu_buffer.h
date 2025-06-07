@@ -53,6 +53,7 @@ DECLARE_PER_CPU(struct oprofile_cpu_buffer, cpu_buffer);
 void cpu_buffer_reset(struct oprofile_cpu_buffer *cpu_buf);
 
 /* transient events for the CPU buffer -> event buffer */
+#define CPU_IS_USER 0
 #define CPU_IS_KERNEL 1
 #define CPU_TRACE_BEGIN 2
 #define IBS_FETCH_BEGIN 3

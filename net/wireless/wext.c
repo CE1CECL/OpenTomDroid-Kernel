@@ -644,8 +644,11 @@ static int wireless_seq_show(struct seq_file *seq, void *v)
 				" face | tus | link level noise |  nwid  "
 				"crypt   frag  retry   misc | beacon | %d\n",
 			   WIRELESS_EXT);
-	else
+	else {
+		rtnl_lock();
 		wireless_seq_printf_stats(seq, v);
+		rtnl_unlock();
+	}
 	return 0;
 }
 

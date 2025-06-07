@@ -72,6 +72,8 @@
 #define PREFIX			""
 #endif
 
+#define PRODUCT_DESC 		"TomTom"
+
 /*
  * This driver aims for interoperability by using CDC ECM unless
  *
@@ -122,11 +124,10 @@ static inline bool has_rndis(void)
  * Instead:  allocate your own, using normal USB-IF procedures.
  */
 
-/* Thanks to NetChip Technologies for donating this product ID.
- * It's for devices with only CDC Ethernet configurations.
+/* TomTom product and vendor IDs for CDC Ethernet configurations.
  */
-#define CDC_VENDOR_NUM		0x0525	/* NetChip */
-#define CDC_PRODUCT_NUM		0xa4a1	/* Linux-USB Ethernet Gadget */
+#define CDC_VENDOR_NUM	0x1390		/* TomTom */
+#define CDC_PRODUCT_NUM	0x5454		/* Linux-USB Ethernet Gadget */
 
 /* For hardware that can't talk CDC, we use the same vendor ID that
  * ARM Linux has used for ethernet-over-usb, both with sa1100 and
@@ -147,8 +148,8 @@ static inline bool has_rndis(void)
  * used with CDC Ethernet, Linux 2.4 hosts will need updates to choose
  * the non-RNDIS configuration.
  */
-#define RNDIS_VENDOR_NUM	0x0525	/* NetChip */
-#define RNDIS_PRODUCT_NUM	0xa4a2	/* Ethernet/RNDIS Gadget */
+#define RNDIS_VENDOR_NUM	0x1390	/* TomTom */
+#define RNDIS_PRODUCT_NUM	0x5454	/* Ethernet/RNDIS Gadget */
 
 /*-------------------------------------------------------------------------*/
 
@@ -173,6 +174,7 @@ static struct usb_device_descriptor device_desc = {
 	/* .iManufacturer = DYNAMIC */
 	/* .iProduct = DYNAMIC */
 	/* NO SERIAL NUMBER */
+	.iSerialNumber = 	2,
 	.bNumConfigurations =	1,
 };
 
@@ -196,12 +198,15 @@ static const struct usb_descriptor_header *otg_desc[] = {
 
 #define STRING_MANUFACTURER_IDX		0
 #define STRING_PRODUCT_IDX		1
+#define STRING_SERIAL_IDX		2
 
 static char manufacturer[50];
+static char serialid[50];
 
 static struct usb_string strings_dev[] = {
 	[STRING_MANUFACTURER_IDX].s = manufacturer,
-	[STRING_PRODUCT_IDX].s = PREFIX DRIVER_DESC,
+	[STRING_PRODUCT_IDX].s = PRODUCT_DESC,
+	[STRING_SERIAL_IDX].s = serialid,
 	{  } /* end of list */
 };
 
@@ -330,6 +335,7 @@ static int __init eth_bind(struct usb_composite_dev *cdev)
 	snprintf(manufacturer, sizeof manufacturer, "%s %s with %s",
 		init_utsname()->sysname, init_utsname()->release,
 		gadget->name);
+
 	status = usb_string_id(cdev);
 	if (status < 0)
 		goto fail;
@@ -341,6 +347,12 @@ static int __init eth_bind(struct usb_composite_dev *cdev)
 		goto fail;
 	strings_dev[STRING_PRODUCT_IDX].id = status;
 	device_desc.iProduct = status;
+
+	status = usb_string_id(cdev);
+	if (status < 0)
+		goto fail;
+	strings_dev[STRING_SERIAL_IDX].id = status;
+	device_desc.iSerialNumber = status;
 
 	/* register our configuration(s); RNDIS first, if it's used */
 	if (has_rndis()) {

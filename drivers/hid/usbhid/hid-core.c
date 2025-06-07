@@ -234,32 +234,51 @@ static void hid_irq_in(struct urb *urb)
 static int hid_submit_out(struct hid_device *hid)
 {
 	struct hid_report *report;
-	char *raw_report;
-	struct usbhid_device *usbhid = hid->driver_data;
+	char *raw_report=NULL;
+	struct usbhid_device *usbhid;
+	int retval=0;
+
+	if(hid != NULL){
+		usbhid = hid->driver_data;
+	} else {
+		return -ENODEV;
+	}
+
 
 	report = usbhid->out[usbhid->outtail].report;
 	raw_report = usbhid->out[usbhid->outtail].raw_report;
 
 	usbhid->urbout->transfer_buffer_length = ((report->size - 1) >> 3) + 1 + (report->id > 0);
 	usbhid->urbout->dev = hid_to_usb_dev(hid);
-	memcpy(usbhid->outbuf, raw_report, usbhid->urbout->transfer_buffer_length);
-	kfree(raw_report);
+	if(usbhid->urbout->transfer_buffer_length <= 0){
+		printk(KERN_WARNING"hid-core.c: usbhid->urbout->transfer_buffer_length == %d\n",
+			usbhid->urbout->transfer_buffer_length);
+	} else {
+		if ( usbhid->outbuf != NULL && raw_report != NULL ){
+			memcpy(usbhid->outbuf, raw_report, usbhid->urbout->transfer_buffer_length);
+		}
+	}
+
+	if(raw_report != NULL){
+		kfree(raw_report);
+		usbhid->out[usbhid->outtail].raw_report=NULL;
+	}
+	
 
 	dbg_hid("submitting out urb\n");
 
-	if (usb_submit_urb(usbhid->urbout, GFP_ATOMIC)) {
-		err_hid("usb_submit_urb(out) failed");
-		return -1;
+	if ( (retval = usb_submit_urb(usbhid->urbout, GFP_ATOMIC)) ) {
+		printk(KERN_WARNING"usb_submit_urb(out) failed, error: %d\n",retval);	
 	}
 
-	return 0;
+	return retval;
 }
 
 static int hid_submit_ctrl(struct hid_device *hid)
 {
 	struct hid_report *report;
 	unsigned char dir;
-	char *raw_report;
+	char *raw_report=NULL;
 	int len;
 	struct usbhid_device *usbhid = hid->driver_data;
 
@@ -272,7 +291,10 @@ static int hid_submit_ctrl(struct hid_device *hid)
 		usbhid->urbctrl->pipe = usb_sndctrlpipe(hid_to_usb_dev(hid), 0);
 		usbhid->urbctrl->transfer_buffer_length = len;
 		memcpy(usbhid->ctrlbuf, raw_report, len);
-		kfree(raw_report);
+		if(raw_report != NULL){
+			kfree(raw_report);
+			usbhid->ctrl[usbhid->ctrltail].raw_report=NULL;
+		}
 	} else {
 		int maxpacket, padlen;
 
@@ -345,6 +367,7 @@ static void hid_irq_out(struct urb *urb)
 			clear_bit(HID_OUT_RUNNING, &usbhid->iofl);
 			wake_up(&usbhid->wait);
 		}
+
 		spin_unlock_irqrestore(&usbhid->outlock, flags);
 		return;
 	}

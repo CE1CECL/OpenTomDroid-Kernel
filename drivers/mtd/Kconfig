@@ -297,7 +297,6 @@ config SSFDC
 
 config MTD_OOPS
 	tristate "Log panic/oops to an MTD buffer"
-	depends on MTD
 	help
 	  This enables panic and oops messages to be logged to a circular
 	  buffer in a flash partition where it can be read back at some
@@ -305,6 +304,12 @@ config MTD_OOPS
 
 	  To use, add console=ttyMTDx to the kernel command line,
 	  where x is the MTD device number to use.
+
+config MTD_LFS_SUPPORT
+        bool "Include Large File System Support (LFS)"
+	depends on MTD
+        help
+          Say 'Y' if your flash is larger than 2G in size.
 
 source "drivers/mtd/chips/Kconfig"
 

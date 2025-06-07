@@ -70,6 +70,19 @@ config SERIAL_8250_CONSOLE
 
 	  If unsure, say N.
 
+config SERIAL_8250_PPC_BUG
+	bool "Fix 8250/16550 to handle interrupt storm on receipt of a break"
+	depends on SERIAL_8250
+	---help---
+	  If you say Y here, addional checks will be added in the handling of
+	  interrupts on the serial ports which will prevent ill effects of
+	  an interrupt storm caused by buggy hardware. This can be the solution
+	  to unusable Magic Sysrq on the serial console.
+
+	  This is commonly observed on 83xx/85xx/86xx boards.
+
+	  If unsure, say N.
+
 config FIX_EARLYCON_MEM
 	bool
 	depends on X86
@@ -304,6 +317,23 @@ config SERIAL_AMBA_PL010_CONSOLE
 	  your boot loader (lilo or loadlin) about how to pass options to the
 	  kernel at boot time.)
 
+config SERIAL_BROADCOM_BCM4760
+	tristate "BROADCOM BCM4760 Serial Port support"
+	depends on ARCH_BCM4760=y
+	select SERIAL_CORE
+	default y
+	---help---
+	  This enables support for the BROADCOM BCM4760 UART.
+
+config SERIAL_BROADCOM_BCM4760_CONSOLE
+	bool "Support for console on BROADCOM BCM1103 serial port"
+	default y
+	depends on SERIAL_BROADCOM_BCM4760=y
+	select SERIAL_CORE_CONSOLE
+	---help---
+	  Say Y here if you wish to use an BROADCOM BCM4760 UART as the system
+	  console (the system console is the device which receives all kernel
+	  messages and warnings and which allows logins in single user mode).
 config SERIAL_AMBA_PL011
 	tristate "ARM AMBA PL011 serial port support"
 	depends on ARM_AMBA
@@ -447,7 +477,7 @@ config SERIAL_CLPS711X_CONSOLE
 
 config SERIAL_SAMSUNG
 	tristate "Samsung SoC serial support"
-	depends on ARM && PLAT_S3C24XX
+	depends on ARM && PLAT_S3C
 	select SERIAL_CORE
 	help
 	  Support for the on-chip UARTs on the Samsung S3C24XX series CPUs,
@@ -455,6 +485,16 @@ config SERIAL_SAMSUNG
 	  provide all of these ports, depending on how the serial port
 	  pins are configured.
 
+config SERIAL_SAMSUNG_UARTS
+	int
+	depends on SERIAL_SAMSUNG
+	default 2 if ARCH_S3C2400
+	default 4 if ARCH_S3C64XX || ARCH_S5P64XX || CPU_S3C2443 || ARCH_S5PC1XX
+	default 3
+	help
+	  Select the number of available UART ports for the Samsung S3C
+	  serial driver
+	
 config SERIAL_SAMSUNG_DEBUG
 	bool "Samsung SoC serial debug"
 	depends on SERIAL_SAMSUNG && DEBUG_LL
@@ -508,7 +548,40 @@ config SERIAL_S3C2440
 	help
 	  Serial port support for the Samsung S3C2440 and S3C2442 SoC
 
+config SERIAL_S3C24A0
+	tristate "Samsung S3C24A0 Serial port support"
+	depends on SERIAL_SAMSUNG && CPU_S3C24A0
+	default y if CPU_S3C24A0
+	help
+	  Serial port support for the Samsung S3C24A0 SoC
 
+config SERIAL_S3C6400
+	tristate "Samsung S3C6400/S3C6410/S5P6440 Serial port support"
+	depends on SERIAL_SAMSUNG && (CPU_S3C6400 || CPU_S3C6410 || CPU_S5P6440)
+	default y
+	help
+	  Serial port support for the Samsung S3C6400, S3C6410 and S5P6440
+	  SoCs
+
+config SERIAL_S5PC100
+	tristate "Samsung S5PC100 Serial port support"
+	depends on SERIAL_SAMSUNG && (CPU_S5PC100 || CPU_S5PC110)
+	default y
+	help
+	  Serial port support for the Samsung S5PC100 SoCs
+
+config SERIAL_S5PC1XX_HSUART
+        bool "Support for High speed UART(4Mbps) on S5PC1XX serial port"
+        depends on SERIAL_S5PC100=y
+        select SERIAL_CORE
+          help
+          Allow High speed UART on the S5PC1XX on-board serial ports
+
+config S5P_UART_DMA_EN
+        bool "Support for UART DMA Tx and Rx"
+        depends on SERIAL_S5PC100=y
+          help
+          Allow UART on S5PC1XX to use DMA. (instead of being interrupt driven.)
 
 config SERIAL_DZ
 	bool "DECstation DZ serial driver"
@@ -1371,5 +1444,18 @@ config SPORT_BAUD_RATE
 	default 38400 if (SERIAL_SPORT_BAUD_RATE_38400)
 	default 19200 if (SERIAL_SPORT_BAUD_RATE_19200)
 	default 9600 if (SERIAL_SPORT_BAUD_RATE_9600)
+
+config SERIAL_BCM4750_EMU
+	tristate "Broadcom BCM4750 Barracuda SPI-TTY emulation driver"
+	depends on SPI
+	select SERIAL_CORE
+	help
+	  Support Emulation driver for BCM4750. This is an UART over SPI driver.
+
+config SERIAL_BCM4750_EMU_DMA
+	bool "Support for DMA transfers on BCM4750"
+	depends on SERIAL_BCM4750_EMU
+	help
+	  Enable SPI DMA transfers for the BCM4750 chip"
 
 endmenu

@@ -33,10 +33,16 @@
 #define PCI_SDHCI_IFVENDOR		0x02
 
 #define PCI_SLOT_INFO			0x40	/* 8 bits */
-#define  PCI_SLOT_INFO_SLOTS(x)		((x >> 4) & 7)
-#define  PCI_SLOT_INFO_FIRST_BAR_MASK	0x07
+#define PCI_SLOT_INFO_SLOTS(x)		((x >> 4) & 7)
+#define PCI_SLOT_INFO_FIRST_BAR_MASK	0x07
 
 #define MAX_SLOTS			8
+
+extern unsigned long sdhci_BCM_SD_getBaseClk(int index);
+extern void sdhci_dumpregs(struct sdhci_host *host);
+#ifdef CONFIG_MMC_BCM_SD
+extern unsigned long sdhci_BCM_SD_getMaxClk(int index);
+#endif
 
 struct sdhci_pci_chip;
 struct sdhci_pci_slot;
@@ -71,7 +77,7 @@ struct sdhci_pci_chip {
 	struct sdhci_pci_slot	*slots[MAX_SLOTS]; /* Pointers to host slots */
 };
 
-
+static struct sdhci_ops bcm476x_sdhci_pci_ops;
 /*****************************************************************************\
  *                                                                           *
  * Hardware specific quirk handling                                          *
@@ -109,6 +115,85 @@ static const struct sdhci_pci_fixes sdhci_cafe = {
 	.quirks		= SDHCI_QUIRK_NO_SIMULT_VDD_AND_POWER |
 			  SDHCI_QUIRK_NO_BUSY_IRQ |
 			  SDHCI_QUIRK_BROKEN_TIMEOUT_VAL,
+};
+
+static unsigned int bcm476x_get_max_clock(struct sdhci_host *host)
+{
+#ifdef CONFIG_MMC_BCM_SD	
+	return sdhci_BCM_SD_getMaxClk(host->mmc->index );
+#else	
+	return host->max_clk;
+#endif	
+}
+
+static void bcm476x_sdhci_change_clock(struct sdhci_host *host, unsigned int clock)
+{
+	int div;
+	u16 clk;
+	unsigned long timeout;
+	unsigned long max_clk;
+
+	max_clk = sdhci_BCM_SD_getBaseClk(host->mmc->index);
+  
+	writew(0, host->ioaddr + SDHCI_CLOCK_CONTROL);
+
+	if (clock == 0)
+		goto out;
+
+	for (div = 1;div < 256;div *= 2) {
+		if ((max_clk / div) <= clock)
+			break;
+	}
+	div >>= 1;
+
+#ifndef CONFIG_PLAT_BCM476X_FPGA   // @KP: clock divider doesn't work in FPGA so don't do it
+	clk = div << SDHCI_DIVIDER_SHIFT;
+	clk |= SDHCI_CLOCK_INT_EN;
+#else
+	clk = SDHCI_CLOCK_INT_EN;
+#endif
+ 
+	writew(clk, host->ioaddr + SDHCI_CLOCK_CONTROL);
+
+	/* Wait max 10 ms */
+	timeout = 10;
+	while (!((clk = readw(host->ioaddr + SDHCI_CLOCK_CONTROL))
+		& SDHCI_CLOCK_INT_STABLE)) {
+		if (timeout == 0) {
+			printk(KERN_ERR "%s: Internal clock never "
+				"stabilised.\n", mmc_hostname(host->mmc));
+			sdhci_dumpregs(host);
+			return;
+		}
+		timeout--;
+		mdelay(1);
+	}
+
+	clk |= SDHCI_CLOCK_CARD_EN;
+	writew(clk, host->ioaddr + SDHCI_CLOCK_CONTROL);
+
+out:
+	host->clock = clock;
+}
+
+static int bcm476x_probe_slot(struct sdhci_pci_slot* slot)
+{
+	dev_info(&slot->chip->pdev->dev, "Registring BCM476x SDHCI workarounds (clocks)\n");
+	slot->host->ops=&bcm476x_sdhci_pci_ops;
+	
+	return 0;
+}
+
+static const struct sdhci_pci_fixes sdhci_bcm_default = {
+#ifdef CONFIG_MMC_BCM_SD_NO_WP	
+	.quirks		= SDHCI_QUIRK_NO_WP,
+#endif	
+	.probe_slot = bcm476x_probe_slot,
+};
+
+static const struct sdhci_pci_fixes sdhci_ext_sd_cd = {
+	.quirks		= SDHCI_QUIRK_EXTERNAL_CARD_DETECT,
+	.probe_slot = bcm476x_probe_slot,
 };
 
 static int jmicron_pmos(struct sdhci_pci_chip *chip, int on)
@@ -285,7 +370,23 @@ static const struct sdhci_pci_fixes sdhci_jmicron = {
 	.resume		= jmicron_resume,
 };
 
-static const struct pci_device_id pci_ids[] __devinitdata = {
+static struct pci_device_id pci_ids[] __devinitdata = {
+#ifdef CONFIG_MMC_BCM_SD
+	{
+		.vendor		= PCI_VENDOR_ID_BROADCOM,
+		.device		= PCI_DEVICE_ID_BCM_SD_CD,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.driver_data	= (kernel_ulong_t)&sdhci_ext_sd_cd,
+	},
+	{
+		.vendor         = PCI_VENDOR_ID_BROADCOM,
+		.device         = PCI_DEVICE_ID_BCM_SD,
+		.subvendor      = PCI_ANY_ID,
+		.subdevice      = PCI_ANY_ID,
+		.driver_data	= (kernel_ulong_t)&sdhci_bcm_default,
+	},
+#endif
 	{
 		.vendor		= PCI_VENDOR_ID_RICOH,
 		.device		= PCI_DEVICE_ID_RICOH_R5C822,
@@ -392,6 +493,13 @@ static int sdhci_pci_enable_dma(struct sdhci_host *host)
 
 static struct sdhci_ops sdhci_pci_ops = {
 	.enable_dma	= sdhci_pci_enable_dma,
+	.change_clock	= sdhci_change_clock,
+};
+
+static struct sdhci_ops bcm476x_sdhci_pci_ops = {
+	.enable_dma	= sdhci_pci_enable_dma,
+	.change_clock	= bcm476x_sdhci_change_clock,
+	.get_max_clock = bcm476x_get_max_clock
 };
 
 /*****************************************************************************\
@@ -611,6 +719,11 @@ static int __devinit sdhci_pci_probe(struct pci_dev *pdev,
 	BUG_ON(ent == NULL);
 
 	pci_read_config_byte(pdev, PCI_CLASS_REVISION, &rev);
+#ifdef CONFIG_MMC_BCM_SD
+	if((int)pdev->device != PCI_DEVICE_ID_BCM_SD && (int)pdev->device != PCI_DEVICE_ID_BCM_SD_CD){
+		return -ENODEV;
+	}
+#endif
 
 	dev_info(&pdev->dev, "SDHCI controller found [%04x:%04x] (rev %x)\n",
 		 (int)pdev->vendor, (int)pdev->device, (int)rev);

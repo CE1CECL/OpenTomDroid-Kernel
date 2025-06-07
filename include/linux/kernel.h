@@ -225,6 +225,8 @@ extern struct ratelimit_state printk_ratelimit_state;
 extern int printk_ratelimit(void);
 extern bool printk_timed_ratelimit(unsigned long *caller_jiffies,
 				   unsigned int interval_msec);
+extern void register_emit_crash_char(void (*fn)(char c));
+extern void unregister_emit_crash_char(void);
 #else
 static inline int vprintk(const char *s, va_list args)
 	__attribute__ ((format (printf, 1, 0)));
@@ -236,6 +238,8 @@ static inline int printk_ratelimit(void) { return 0; }
 static inline bool printk_timed_ratelimit(unsigned long *caller_jiffies, \
 					  unsigned int interval_msec)	\
 		{ return false; }
+static inline void register_emit_crash_char(void (*fn)(char c)) {}
+static inline void unregister_emit_crash_char() {}
 #endif
 
 extern int printk_needs_cpu(int cpu);
@@ -257,6 +261,7 @@ static inline void console_verbose(void)
 		console_loglevel = 15;
 }
 
+extern int printk_time;
 extern void bust_spinlocks(int yes);
 extern void wake_up_klogd(void);
 extern int oops_in_progress;		/* If set, an oops, panic(), BUG() or die() is in progress */

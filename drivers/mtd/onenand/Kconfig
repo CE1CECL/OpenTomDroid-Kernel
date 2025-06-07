@@ -24,8 +24,16 @@ config MTD_ONENAND_VERIFY_WRITE
 config MTD_ONENAND_GENERIC
 	tristate "OneNAND Flash device via platform device driver"
 	depends on ARM
+	default n
 	help
 	  Support for OneNAND flash via platform device driver.
+	  
+config MTD_ONENAND_BCM_XBOARD
+	tristate "XBOARD specific OneNAND device driver"
+	depends on ARCH_BCM2153
+	default y
+	help
+	  Support for XBOARD specific OneNAND device driver.
 
 config MTD_ONENAND_OMAP2
 	tristate "OneNAND on OMAP2/OMAP3 support"

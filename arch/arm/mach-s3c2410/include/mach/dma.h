@@ -134,12 +134,13 @@ enum s3c2410_chan_op {
 	S3C2410_DMAOP_FLUSH,
 	S3C2410_DMAOP_TIMEOUT,		/* internal signal to handler */
 	S3C2410_DMAOP_STARTED,		/* indicate channel started */
+	S3C2410_DMAOP_ABORT,		/* abnormal stop */
 };
 
 /* flags */
 
 #define S3C2410_DMAF_SLOW         (1<<0)   /* slow, so don't worry about
-					    * waiting for reloads */
+					   /* waiting for reloads */
 #define S3C2410_DMAF_AUTOSTART    (1<<1)   /* auto-start if buffer queued */
 
 /* dma buffer */

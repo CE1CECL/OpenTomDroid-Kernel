@@ -1,3 +1,4 @@
+header-y += broadcom/
 header-y += byteorder/
 header-y += can/
 header-y += dvb/
@@ -310,6 +311,7 @@ unifdef-y += pmu.h
 unifdef-y += poll.h
 unifdef-y += ppp_defs.h
 unifdef-y += ppp-comp.h
+unifdef-y += pps.h
 unifdef-y += ptrace.h
 unifdef-y += qnx4_fs.h
 unifdef-y += quota.h

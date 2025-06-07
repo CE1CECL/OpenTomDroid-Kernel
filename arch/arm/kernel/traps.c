@@ -20,6 +20,8 @@
 #include <linux/delay.h>
 #include <linux/hardirq.h>
 #include <linux/init.h>
+#include <linux/kprobes.h>
+#include <trace/trap.h>
 #include <linux/uaccess.h>
 
 #include <asm/atomic.h>
@@ -27,6 +29,7 @@
 #include <asm/system.h>
 #include <asm/unistd.h>
 #include <asm/traps.h>
+#include <asm/unwind.h>
 
 #include "ptrace.h"
 #include "signal.h"
@@ -61,6 +64,7 @@ void dump_backtrace_entry(unsigned long where, unsigned long from, unsigned long
 		dump_mem("Exception stack", frame + 4, frame + 4 + sizeof(struct pt_regs));
 }
 
+#ifndef CONFIG_ARM_UNWIND
 /*
  * Stack pointers should always be within the kernels view of
  * physical memory.  If it is not there, then we can't dump
@@ -74,6 +78,7 @@ static int verify_stack(unsigned long sp)
 
 	return 0;
 }
+#endif
 
 /*
  * Dump out the contents of some memory nicely...
@@ -150,13 +155,33 @@ static void dump_instr(struct pt_regs *regs)
 	set_fs(fs);
 }
 
+#ifdef CONFIG_ARM_UNWIND
+static inline void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk)
+{
+	unwind_backtrace(regs, tsk);
+}
+#else
 static void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk)
 {
-	unsigned int fp;
+	unsigned int fp, mode;
 	int ok = 1;
 
 	printk("Backtrace: ");
-	fp = regs->ARM_fp;
+
+	if (!tsk)
+		tsk = current;
+
+	if (regs) {
+		fp = regs->ARM_fp;
+		mode = processor_mode(regs);
+	} else if (tsk != current) {
+		fp = thread_saved_fp(tsk);
+		mode = 0x10;
+	} else {
+		asm("mov %0, fp" : "=r" (fp) : : "cc");
+		mode = 0x10;
+	}
+
 	if (!fp) {
 		printk("no frame pointer");
 		ok = 0;
@@ -168,29 +193,20 @@ static void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk)
 	printk("\n");
 
 	if (ok)
-		c_backtrace(fp, processor_mode(regs));
+		c_backtrace(fp, mode);
 }
+#endif
 
 void dump_stack(void)
 {
-	__backtrace();
+	dump_backtrace(NULL, NULL);
 }
 
 EXPORT_SYMBOL(dump_stack);
 
 void show_stack(struct task_struct *tsk, unsigned long *sp)
 {
-	unsigned long fp;
-
-	if (!tsk)
-		tsk = current;
-
-	if (tsk != current)
-		fp = thread_saved_fp(tsk);
-	else
-		asm("mov %0, fp" : "=r" (fp) : : "cc");
-
-	c_backtrace(fp, 0x10);
+	dump_backtrace(NULL, tsk);
 	barrier();
 }
 
@@ -261,7 +277,11 @@ void arm_notify_die(const char *str, struct pt_regs *regs,
 		current->thread.error_code = err;
 		current->thread.trap_no = trap;
 
+		trace_trap_entry(regs, current->thread.trap_no);
+
 		force_sig_info(info->si_signo, info, current);
+
+		trace_trap_exit();
 	} else {
 		die(str, regs, err);
 	}
@@ -625,6 +645,14 @@ void __bad_xchg(volatile void *ptr, int size)
 }
 EXPORT_SYMBOL(__bad_xchg);
 
+void __bad_cmpxchg(volatile void *ptr, int size)
+{
+	printk("cmpxchg: bad data size: pc 0x%p, ptr 0x%p, size %d\n",
+		__builtin_return_address(0), ptr, size);
+	BUG();
+}
+EXPORT_SYMBOL(__bad_cmpxchg);
+
 /*
  * A data abort trap was taken, but we did not handle the instruction.
  * Try to abort the user program, or panic if it was the kernel.
@@ -655,7 +683,7 @@ baddataabort(int code, unsigned long instr, struct pt_regs *regs)
 void __attribute__((noreturn)) __bug(const char *file, int line)
 {
 	printk(KERN_CRIT"kernel BUG at %s:%d!\n", file, line);
-	*(int *)0 = 0;
+	*(volatile int *)0 = 0;
 
 	/* Avoid "noreturn function does return" */
 	for (;;);
@@ -732,3 +760,29 @@ void __init early_trap_init(void)
 	flush_icache_range(vectors, vectors + PAGE_SIZE);
 	modify_domain(DOMAIN_USER, DOMAIN_CLIENT);
 }
+
+
+void ltt_dump_sys_call_table(void *call_data)
+{
+	int i;
+	char namebuf[KSYM_NAME_LEN];
+
+	extern unsigned long sys_call_table[];
+	for (i = 0; i < __NR_syscalls; i++) {
+		sprint_symbol(namebuf, sys_call_table[i]);
+		__trace_mark(0, statedump_sys_call_table, call_data,
+			"id %d address %p symbol %s",
+			i + __NR_SYSCALL_BASE, (void *)sys_call_table[i], namebuf);
+	}
+}
+EXPORT_SYMBOL_GPL(ltt_dump_sys_call_table);
+
+/*
+ * This function should be defined and exported if CONFIG_HAVE_LTT_DUMP_TABLES
+ * is enabled. It's not implemented because currently the userspace tools don't
+ * use this information.
+ */
+void ltt_dump_idt_table(void *call_data)
+{
+}
+EXPORT_SYMBOL_GPL(ltt_dump_idt_table);

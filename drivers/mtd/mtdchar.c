@@ -84,9 +84,13 @@ static loff_t mtd_lseek (struct file *file, loff_t offset, int orig)
 
 static int mtd_open(struct inode *inode, struct file *file)
 {
-	int minor = iminor(inode);
-	int devnum = minor >> 1;
 	int ret = 0;
+	int minor = iminor(inode);
+#if defined(CONFIG_PLAT_BCM476X)
+	int devnum = minor;
+#else
+	int devnum = minor >> 1;
+#endif
 	struct mtd_info *mtd;
 	struct mtd_file_info *mfi;
 
@@ -96,8 +100,10 @@ static int mtd_open(struct inode *inode, struct file *file)
 		return -ENODEV;
 
 	/* You can't open the RO devices RW */
+#if defined(CONFIG_PLAT_BCM476X) 
 	if ((file->f_mode & FMODE_WRITE) && (minor & 1))
 		return -EACCES;
+#endif
 
 	lock_kernel();
 	mtd = get_mtd_device(NULL, devnum);

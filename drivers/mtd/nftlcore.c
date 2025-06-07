@@ -42,7 +42,11 @@ static void nftl_add_mtd(struct mtd_blktrans_ops *tr, struct mtd_info *mtd)
 	if (mtd->type != MTD_NANDFLASH)
 		return;
 	/* OK, this is moderately ugly.  But probably safe.  Alternatives? */
+#ifdef CONFIG_ARCH_BCM282X
+        if (memcmp(mtd->name, "BCM282X NAND-MTD", 20))
+#else
 	if (memcmp(mtd->name, "DiskOnChip", 10))
+#endif
 		return;
 
 	if (!mtd->block_isbad) {

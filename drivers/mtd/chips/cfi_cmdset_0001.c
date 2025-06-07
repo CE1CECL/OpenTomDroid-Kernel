@@ -472,11 +472,16 @@ struct mtd_info *cfi_cmdset_0001(struct map_info *map, int primary)
 				1<<cfi->cfiq->BufWriteTimeoutTyp;
 		/* No default; if it isn't specified, we won't use it */
 
+#ifdef CONFIG_INTEL_ATCA717 /* ATMEL AT49LW080 chip reports erase time in seconds */
+		cfi->chips[i].erase_time = 1000<<cfi->cfiq->BlockEraseTimeoutTyp;
+#else
 		if (cfi->cfiq->BlockEraseTimeoutTyp)
 			cfi->chips[i].erase_time =
-				1000<<cfi->cfiq->BlockEraseTimeoutTyp;
+				CONFIG_MTD_CFI_INTELEXT_ERASE_MULTIPLIER
+                                       <<cfi->cfiq->BlockEraseTimeoutTyp;
 		else
 			cfi->chips[i].erase_time = 2000000;
+#endif /* CONFIG_INTEL_ATCA717 */
 
 		if (cfi->cfiq->WordWriteTimeoutTyp &&
 		    cfi->cfiq->WordWriteTimeoutMax)

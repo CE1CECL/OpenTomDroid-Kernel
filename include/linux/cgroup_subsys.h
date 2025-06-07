@@ -43,12 +43,25 @@ SUBSYS(mem_cgroup)
 
 /* */
 
-#ifdef CONFIG_CGROUP_DEVICE
-SUBSYS(devices)
+#ifdef CONFIG_CGROUP_BIO
+SUBSYS(bio_cgroup)
 #endif
 
 /* */
 
+#ifdef CONFIG_CGROUP_DEVICE
+SUBSYS(devices)
+#endif
+
+#ifdef CONFIG_CGROUP_MEMRLIMIT_CTLR
+SUBSYS(memrlimit_cgroup)
+#endif
+
+/* */
+
+#ifdef CONFIG_CGROUP_TC
+SUBSYS(tc)
+#endif
 #ifdef CONFIG_CGROUP_FREEZER
 SUBSYS(freezer)
 #endif

@@ -22,6 +22,9 @@
 #include <linux/string.h>
 #include <linux/file.h>
 #include <linux/fcntl.h>
+#ifdef CONFIG_WRNOTE
+#include <linux/wrnote.h>
+#endif
 #include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/shm.h>
@@ -1422,12 +1425,16 @@ struct elf_thread_core_info {
 	struct elf_thread_core_info *next;
 	struct task_struct *task;
 	struct elf_prstatus prstatus;
+#ifdef CONFIG_WRNOTE
+	struct memelfnote wrnote;
+#endif
 	struct memelfnote notes[0];
 };
 
 struct elf_note_info {
 	struct elf_thread_core_info *thread;
 	struct memelfnote psinfo;
+	struct memelfnote wr[3];
 	struct memelfnote auxv;
 	size_t size;
 	int thread_notes;
@@ -1450,6 +1457,9 @@ static int fill_thread_core_info(struct elf_thread_core_info *t,
 				 long signr, size_t *total)
 {
 	unsigned int i;
+#ifdef CONFIG_WRNOTE
+	int	ns	= 0;		/* WR note size */
+#endif
 
 	/*
 	 * NT_PRSTATUS is the one special case, because the regset data
@@ -1488,6 +1498,9 @@ static int fill_thread_core_info(struct elf_thread_core_info *t,
 			if (unlikely(ret))
 				kfree(data);
 			else {
+#ifdef CONFIG_WRNOTE
+				ns = 1;
+#endif
 				if (regset->core_note_type != NT_PRFPREG)
 					fill_note(&t->notes[i], "LINUX",
 						  regset->core_note_type,
@@ -1501,6 +1514,15 @@ static int fill_thread_core_info(struct elf_thread_core_info *t,
 			}
 		}
 	}
+#ifdef CONFIG_WRNOTE
+	if (ns) {
+		/* also add WR note */
+		ns	= get_wr_note_size (NT_WR_PRSTATUS, &t->prstatus);
+		fill_note (&t->wrnote, "CORE", NT_WR_PRSTATUS, ns,
+				   get_wr_note(NT_WR_PRSTATUS, &t->prstatus));
+		*total += notesize(&t->wrnote);
+	}
+#endif
 
 	return 1;
 }
@@ -1615,6 +1637,14 @@ static int write_note_info(struct elf_note_info *info,
 
 		if (first && !writenote(&info->psinfo, file, foffset))
 			return 0;
+#ifdef CONFIG_WRNOTE
+		if (first && !writenote(&info->wr[0], file, foffset))
+			return 0;
+		if (first && !writenote(&info->wr[1], file, foffset))
+			return 0;
+		if (first && !writenote(&info->wr[2], file, foffset))
+			return 0;
+#endif
 		if (first && !writenote(&info->auxv, file, foffset))
 			return 0;
 
@@ -1622,6 +1652,12 @@ static int write_note_info(struct elf_note_info *info,
 			if (t->notes[i].data &&
 			    !writenote(&t->notes[i], file, foffset))
 				return 0;
+
+#ifdef CONFIG_WRNOTE
+		if (t->wrnote.data &&
+			!writenote(&t->wrnote, file, foffset))
+			return 0;
+#endif
 
 		first = 0;
 		t = t->next;
@@ -1657,7 +1693,7 @@ struct elf_thread_status
 #ifdef ELF_CORE_COPY_XFPREGS
 	elf_fpxregset_t xfpu;		/* ELF_CORE_XFPREG_TYPE */
 #endif
-	struct memelfnote notes[3];
+	struct memelfnote notes[4];     /* allow for wrnotes */
 	int num_notes;
 };
 
@@ -1670,6 +1706,10 @@ static int elf_dump_thread_status(long signr, struct elf_thread_status *t)
 {
 	int sz = 0;
 	struct task_struct *p = t->thread;
+#ifdef CONFIG_WRNOTE
+	int	ns		= 0;		/* WR note size */
+	int	num_note	= 0;		/* note number in array */
+#endif
 	t->num_notes = 0;
 
 	fill_prstatus(&t->prstatus, p, signr);
@@ -1680,20 +1720,50 @@ static int elf_dump_thread_status(long signr, struct elf_thread_status *t)
 	t->num_notes++;
 	sz += notesize(&t->notes[0]);
 
+#ifdef CONFIG_WRNOTE
+	num_note ++;
+
+	/* also add WR note */
+
+	ns	= get_wr_note_size (NT_WR_PRSTATUS, &t->prstatus);
+
+	fill_note (&t->notes [num_note], "CORE", NT_WR_PRSTATUS, ns,
+		   get_wr_note (NT_WR_PRSTATUS, &t->prstatus));
+
+	t->num_notes++;
+	sz += notesize (&t->notes[num_note]);
+	num_note ++;
+#endif
 	if ((t->prstatus.pr_fpvalid = elf_core_copy_task_fpregs(p, NULL,
 								&t->fpu))) {
+#ifdef CONFIG_WRNOTE
+		fill_note(&t->notes[num_note], "CORE", NT_PRFPREG,
+			  sizeof(t->fpu), &(t->fpu));
+#else
 		fill_note(&t->notes[1], "CORE", NT_PRFPREG, sizeof(t->fpu),
 			  &(t->fpu));
+#endif
 		t->num_notes++;
+#ifdef CONFIG_WRNOTE
+		sz += notesize(&t->notes[num_note]);
+		num_note ++;
+#else
 		sz += notesize(&t->notes[1]);
+#endif
 	}
 
 #ifdef ELF_CORE_COPY_XFPREGS
 	if (elf_core_copy_task_xfpregs(p, &t->xfpu)) {
+#ifdef CONFIG_WRNOTE
+		fill_note(&t->notes[num_note], "LINUX", NT_PRXFPREG,
+			  sizeof(t->xfpu), &t->xfpu);
+		sz += notesize(&t->notes[num_note]);
+#else
 		fill_note(&t->notes[2], "LINUX", ELF_CORE_XFPREG_TYPE,
 			  sizeof(t->xfpu), &t->xfpu);
-		t->num_notes++;
 		sz += notesize(&t->notes[2]);
+#endif
+      		t->num_notes++;
 	}
 #endif	
 	return sz;
@@ -1716,9 +1786,11 @@ static int fill_note_info(struct elfhdr *elf, int phdrs,
 			  struct elf_note_info *info,
 			  long signr, struct pt_regs *regs)
 {
-#define	NUM_NOTES	6
+#define	NUM_NOTES	10
 	struct list_head *t;
-
+#ifdef CONFIG_WRNOTE
+	int	ns	= 0;		/* WR note size */
+#endif
 	info->notes = NULL;
 	info->prstatus = NULL;
 	info->psinfo = NULL;
@@ -1790,6 +1862,23 @@ static int fill_note_info(struct elfhdr *elf, int phdrs,
 		  sizeof(*info->psinfo), info->psinfo);
 
 	info->numnote = 2;
+
+#ifdef CONFIG_WRNOTE
+	/* add Wind River notes : kernel info */
+	ns	= get_wr_note_size (NT_WR_KERNEL_INFO, NULL);
+	fill_note (info->notes + info->numnote++, "CORE", NT_WR_KERNEL_INFO, ns,
+		   get_wr_note (NT_WR_KERNEL_INFO, NULL));
+
+	/* process info */
+	ns	= get_wr_note_size (NT_WR_PRPSINFO, info->psinfo);
+	fill_note (info->notes + info->numnote++, "CORE", NT_WR_PRPSINFO, ns,
+		   get_wr_note (NT_WR_PRPSINFO, info->psinfo));
+
+	/* process status */
+	ns	= get_wr_note_size (NT_WR_PRSTATUS, info->prstatus);
+	fill_note (info->notes + info->numnote++, "CORE", NT_WR_PRSTATUS, ns,
+		   get_wr_note (NT_WR_PRSTATUS, info->prstatus));
+#endif
 
 	fill_auxv_note(&info->notes[info->numnote++], current->mm);
 
@@ -1910,6 +1999,9 @@ static int elf_core_dump(long signr, struct pt_regs *regs, struct file *file, un
 	loff_t offset = 0, dataoff, foffset;
 	unsigned long mm_flags;
 	struct elf_note_info info;
+#if defined(CONFIG_WRNOTE) && defined(CORE_DUMP_USE_REGSET)
+	int	ns	= 0;		/* WR note size */
+#endif
 
 	/*
 	 * We no longer stop all VM operations.
@@ -1944,7 +2036,25 @@ static int elf_core_dump(long signr, struct pt_regs *regs, struct file *file, un
 	if (!fill_note_info(elf, segs + 1, /* including notes section */
 			    &info, signr, regs))
 		goto cleanup;
+#if defined(CONFIG_WRNOTE) && defined(CORE_DUMP_USE_REGSET)
+	/* add Wind River notes : kernel info */
+	ns	= get_wr_note_size (NT_WR_KERNEL_INFO, NULL);
+	fill_note (&info.wr[0], "CORE", NT_WR_KERNEL_INFO, ns,
+		   get_wr_note (NT_WR_KERNEL_INFO, NULL));
+	info.size += notesize(&info.wr[0]);
 
+	/* process info */
+	ns	= get_wr_note_size (NT_WR_PRPSINFO, info.psinfo.data);
+	fill_note (&info.wr[1], "CORE", NT_WR_PRPSINFO, ns,
+		   get_wr_note (NT_WR_PRPSINFO, info.psinfo.data));
+	info.size += notesize(&info.wr[1]);
+
+	/* process status */
+	ns	= get_wr_note_size (NT_WR_PRSTATUS, &info.thread->prstatus);
+	fill_note (&info.wr[2], "CORE", NT_WR_PRSTATUS, ns,
+		   get_wr_note (NT_WR_PRSTATUS, &info.thread->prstatus));
+	info.size += notesize(&info.wr[2]);
+#endif
 	has_dumped = 1;
 	current->flags |= PF_DUMPCORE;
   
@@ -2062,6 +2172,11 @@ end_coredump:
 cleanup:
 	free_note_info(&info);
 	kfree(elf);
+#ifdef CONFIG_WRNOTE
+	/* free wr notes data */
+	free_wr_note_data ();
+#endif
+
 out:
 	return has_dumped;
 }

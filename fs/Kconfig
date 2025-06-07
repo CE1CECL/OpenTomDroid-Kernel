@@ -567,6 +567,26 @@ config VFAT_FS
 	  To compile this as a module, choose M here: the module will be called
 	  vfat.
 
+config VFAT_FS_DUALNAMES
+	bool "VFAT dual names support"
+	depends on VFAT_FS
+	help
+	  This option provides support for dual filenames on VFAT filesystems.
+	  If this option is disabled then file creation will either put
+	  a short (8.3) name or a long name on the file, but never both.
+	  The field where a shortname would normally go is filled with
+	  invalid characters such that it cannot be considered a valid
+	  short filename.
+
+	  That means that long filenames created with this option
+	  disabled will not be accessible at all to operating systems
+	  that do not understand the VFAT extensions.
+
+	  Users considering enabling this option should consider the implications
+	  of any patents that may exist on dual filenames in VFAT.
+
+	  If unsure, say N
+
 config FAT_DEFAULT_CODEPAGE
 	int "Default codepage for FAT"
 	depends on MSDOS_FS || VFAT_FS
@@ -674,6 +694,13 @@ endif # BLOCK
 menu "Pseudo filesystems"
 
 source "fs/proc/Kconfig"
+
+config PROC_BUILDINFO
+	bool "Buildinfo support (/proc/buildinfo)" if EMBEDDED
+	depends on PROC_FS
+	default n
+	---help---
+	  This enables a buildinfo entry to be added to the proc interface.
 
 config SYSFS
 	bool "sysfs file system support" if EMBEDDED
@@ -907,6 +934,10 @@ config EFS_FS
 	  To compile the EFS file system support as a module, choose M here: the
 	  module will be called efs.
 
+
+# Patched by YAFFS
+source "fs/yaffs2/Kconfig"
+
 source "fs/jffs2/Kconfig"
 # UBIFS File system configuration
 source "fs/ubifs/Kconfig"
@@ -930,6 +961,53 @@ config CRAMFS
 	  directory /) cannot be compiled as a module.
 
 	  If unsure, say N.
+
+config CRAMFS_LINEAR
+	bool "Use linear addressing for CramFs"
+	depends on CRAMFS
+	help
+	  This option tells the CramFs driver to load data directly from
+	  a linear adressed memory range (usually non volatile memory
+	  like flash) instead of going through the block device layer.
+	  This saves some memory since no intermediate buffering is
+	  necessary.
+
+	  This is also a prerequisite for XIP of binaries stored on the
+	  filesystem.
+
+	  The location of the CramFs image in memory is board
+	  dependent. Therefore, if you say Y, you must know the proper
+	  physical address where to store the CramFs image and specify
+	  it using the physaddr=0x******** mount option (for example:
+	  "mount -t cramfs -o physaddr=0x100000 none /mnt").
+
+	  If unsure, say N.
+
+config CRAMFS_LINEAR_XIP
+	bool "Support XIP on linear CramFs"
+	depends on CRAMFS_LINEAR
+	help
+	  You must say Y to this option if you want to be able to run
+	  applications directly from non-volatile memory.  XIP
+	  applications are marked by setting the sticky bit (ie, "chmod
+	  +t <app name>").  A cramfs file system then needs to be
+	  created using mkcramfs (with XIP cramfs support in
+	  it). Applications marked for XIP execution will not be
+	  compressed since they have to run directly from flash.
+
+config ROOT_CRAMFS_LINEAR
+	bool "Root file system on linear CramFs"
+	depends on CRAMFS_LINEAR
+	help
+	  Say Y if you have enabled linear CramFs, and you want to be
+	  able to use the linear CramFs image as a root file system.  To
+	  actually have the kernel mount this CramFs image as a root
+	  file system, you must also pass the command line parameter
+	  "root=/dev/null rootflags=physaddr=0x********" to the kernel
+	  (replace 0x******** with the physical address location of the
+	  linear CramFs image to boot with).
+
+source "fs/squashfs/Kconfig"
 
 config VXFS_FS
 	tristate "FreeVxFS file system support (VERITAS VxFS(TM) compatible)"
@@ -1142,7 +1220,7 @@ if NETWORK_FILESYSTEMS
 
 config NFS_FS
 	tristate "NFS client support"
-	depends on INET
+	depends on INET || INTERPEAK
 	select LOCKD
 	select SUNRPC
 	select NFS_ACL_SUPPORT if NFS_V3_ACL
@@ -1218,7 +1296,7 @@ config NFS_V4
 
 config ROOT_NFS
 	bool "Root file system on NFS"
-	depends on NFS_FS=y && IP_PNP
+	depends on NFS_FS=y && IP_PNP && INET
 	help
 	  If you want your system to mount its root file system via NFS,
 	  choose Y here.  This is common practice for managing systems
@@ -1229,7 +1307,7 @@ config ROOT_NFS
 
 config NFSD
 	tristate "NFS server support"
-	depends on INET
+	depends on INET || INTERPEAK
 	select LOCKD
 	select SUNRPC
 	select EXPORTFS
@@ -1308,6 +1386,26 @@ config NFSD_V4
 
 	  If unsure, say N.
 
+config ROOT_NFS_PATH
+	string "Default NFS Root file system path"
+	depends on ROOT_NFS
+	default "/tftpboot/%s"
+	help
+	  If you intend to boot your box with an NFS-mounted root filesystem,
+	  you will need to specify a path on your boot server where the
+	  filesytems is located.  If you don't specify one in your kernel boot
+	  arguments, or if you specify the 'ip=on' option, this is the path
+	  which will actually be used.  Only one format option is respected
+	  here, '%s' is translated into the ip address of your box, and it is
+	  only interpreted the first time it is found in the string.  Strings
+	  are silently truncated to 255 bytes total, including the string
+	  representation of the local IP address.
+
+	  This has no effect if you specify a path in your kernel boot
+	  arguments.
+
+	  Choose the default unless you know why you want something different.
+
 config LOCKD
 	tristate
 
@@ -1336,7 +1434,7 @@ config SUNRPC_GSS
 
 config SUNRPC_XPRT_RDMA
 	tristate
-	depends on SUNRPC && INFINIBAND && EXPERIMENTAL
+	depends on SUNRPC && INFINIBAND && EXPERIMENTAL && !INTERPEAK
 	default SUNRPC && INFINIBAND
 	help
 	  This option enables an RPC client transport capability that
@@ -1410,7 +1508,7 @@ config RPCSEC_GSS_SPKM3
 
 config SMB_FS
 	tristate "SMB file system support (OBSOLETE, please use CIFS)"
-	depends on INET
+	depends on INET || INTERPEAK
 	select NLS
 	help
 	  SMB (Server Message Block) is the protocol Windows for Workgroups

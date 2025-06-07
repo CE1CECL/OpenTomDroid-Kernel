@@ -37,12 +37,15 @@
 #include <linux/delay.h>
 #include <linux/tick.h>
 #include <linux/kallsyms.h>
+#include <linux/trace-clock.h>
+#include <trace/timer.h>
 
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 #include <asm/div64.h>
 #include <asm/timex.h>
 #include <asm/io.h>
+#include <asm/irq_regs.h>
 
 u64 jiffies_64 __cacheline_aligned_in_smp = INITIAL_JIFFIES;
 
@@ -357,6 +360,7 @@ static void internal_add_timer(struct tvec_base *base, struct timer_list *timer)
 		i = (expires >> (TVR_BITS + 3 * TVN_BITS)) & TVN_MASK;
 		vec = base->tv5.vec + i;
 	}
+	trace_timer_set(timer);
 	/*
 	 * Timers are FIFO:
 	 */
@@ -1136,6 +1140,10 @@ void do_timer(unsigned long ticks)
 {
 	jiffies_64 += ticks;
 	update_times(ticks);
+#if defined( CONFIG_HAVE_TRACE_CLOCK_32_TO_64 ) && defined( CONFIG_FUNCTION_TRACER )
+	trace_clock_add_timestamp(ticks);
+#endif
+	trace_timer_update_time(&xtime, &wall_to_monotonic);
 }
 
 #ifdef __ARCH_WANT_SYS_ALARM
@@ -1217,7 +1225,9 @@ SYSCALL_DEFINE0(getegid)
 
 static void process_timeout(unsigned long __data)
 {
-	wake_up_process((struct task_struct *)__data);
+	struct task_struct *task = (struct task_struct *)__data;
+	trace_timer_timeout(task);
+	wake_up_process(task);
 }
 
 /**

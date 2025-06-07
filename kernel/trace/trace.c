@@ -63,6 +63,7 @@ static cpumask_t __read_mostly		tracing_buffer_mask;
 	for_each_cpu_mask(cpu, tracing_buffer_mask)
 
 static int tracing_disabled = 1;
+static int print_trace_line(struct trace_iterator *iter);
 
 long
 ns2usecs(cycle_t nsec)
@@ -564,7 +565,7 @@ void tracing_reset(struct trace_array *tr, int cpu)
 	ftrace_enable_cpu();
 }
 
-#define SAVED_CMDLINES 128
+#define SAVED_CMDLINES CONFIG_TRACE_SAVED_CMDLINES
 static unsigned map_pid_to_cmdline[PID_MAX_DEFAULT+1];
 static unsigned map_cmdline_to_pid[SAVED_CMDLINES];
 static char saved_cmdlines[SAVED_CMDLINES][TASK_COMM_LEN];
@@ -655,6 +656,7 @@ tracing_generic_entry_update(struct trace_entry *entry, unsigned long flags,
 
 	entry->preempt_count		= pc & 0xff;
 	entry->pid			= (tsk) ? tsk->pid : 0;
+	entry->ppid		= (tsk) ? tsk->real_parent->pid : 0;
 	entry->flags =
 #ifdef CONFIG_TRACE_IRQFLAGS_SUPPORT
 		(irqs_disabled_flags(flags) ? TRACE_FLAG_IRQS_OFF : 0) |
@@ -1137,6 +1139,28 @@ seq_print_sym_offset(struct trace_seq *s, const char *fmt,
 	return 1;
 }
 
+#ifdef CONFIG_IRQSOFF_TRACER
+extern struct trace_array *irqtrack_trace;
+static struct trace_iterator iter;
+void dump_irq_trace(void) {
+	int i = 0;
+	iter.tr = irqtrack_trace;
+	iter.trace = current_trace;
+	iter.pos = -1;
+	printk("#           TASK-PID    PPID CPU#    TIMESTAMP  FUNCTION\n");
+	printk("#              | |         |  |          |         |\n");
+	if (iter.trace && iter.trace->open) 
+		iter.trace->open(&iter); /* _really_ ensure tracing is off */
+	while (i < global_trace.entries) {
+		find_next_entry_inc(&iter);
+		print_trace_line(&iter);
+		printk("%s",iter.seq.buffer);
+		trace_seq_reset(&iter.seq);
+		i++;
+	}
+}
+#endif
+
 #ifndef CONFIG_64BIT
 # define IP_FMT "%08lx"
 #else
@@ -1179,8 +1203,8 @@ static void print_lat_help_header(struct seq_file *m)
 
 static void print_func_help_header(struct seq_file *m)
 {
-	seq_puts(m, "#           TASK-PID    CPU#    TIMESTAMP  FUNCTION\n");
-	seq_puts(m, "#              | |       |          |         |\n");
+	seq_puts(m, "#           TASK-PID    PPID CPU#    TIMESTAMP  FUNCTION\n");
+	seq_puts(m, "#              | |         |  |          |         |\n");
 }
 
 
@@ -1478,7 +1502,7 @@ static enum print_line_t print_trace_fmt(struct trace_iterator *iter)
 	usec_rem = do_div(t, 1000000ULL);
 	secs = (unsigned long)t;
 
-	ret = trace_seq_printf(s, "%16s-%-5d ", comm, entry->pid);
+	ret = trace_seq_printf(s, "%16s-%-5d %5d ", comm, entry->pid, entry->ppid);
 	if (!ret)
 		return TRACE_TYPE_PARTIAL_LINE;
 	ret = trace_seq_printf(s, "[%03d] ", iter->cpu);
@@ -2361,6 +2385,32 @@ tracing_ctrl_write(struct file *filp, const char __user *ubuf,
 	return cnt;
 }
 
+#ifdef CONFIG_FTRACE_EARLY
+int __init tracing_early_ctrl_write(unsigned int val)
+{
+	struct trace_array *tr = &global_trace;
+	int ret = 0;
+
+	mutex_lock(&trace_types_lock);
+	if (tr->ctrl ^ val) {
+		if (val)
+			tracer_enabled = 1;
+		else
+			tracer_enabled = 0;
+
+		tr->ctrl = val;
+
+		if (current_trace && current_trace->ctrl_update)
+			current_trace->ctrl_update(tr);
+
+		ret = 1;
+	}
+	mutex_unlock(&trace_types_lock);
+
+	return ret;
+}
+#endif /* CONFIG_EARLY_FTRACE */
+
 static ssize_t
 tracing_set_trace_read(struct file *filp, char __user *ubuf,
 		       size_t cnt, loff_t *ppos)
@@ -2429,6 +2479,46 @@ tracing_set_trace_write(struct file *filp, const char __user *ubuf,
 
 	return ret;
 }
+
+#ifdef CONFIG_FTRACE_EARLY
+ssize_t __init tracing_early_set_trace_write(const char *ubuf, size_t cnt)
+{
+	struct trace_array *tr = &global_trace;
+	struct tracer *t;
+	char buf[max_tracer_type_len+1];
+	int i;
+
+	if (cnt > max_tracer_type_len)
+		cnt = max_tracer_type_len;
+
+	memcpy(&buf, ubuf, cnt);
+	buf[cnt] = 0;
+
+	/* strip ending whitespace. */
+	for (i = cnt - 1; i > 0 && isspace(buf[i]); i--)
+		buf[i] = 0;
+
+	mutex_lock(&trace_types_lock);
+	for (t = trace_types; t; t = t->next) {
+		if (strcmp(t->name, buf) == 0)
+			break;
+	}
+	if (!t || t == current_trace)
+		goto out;
+
+	if (current_trace && current_trace->reset)
+		current_trace->reset(tr);
+
+	current_trace = t;
+	if (t->init)
+		t->init(tr);
+
+ out:
+	mutex_unlock(&trace_types_lock);
+
+	return cnt;
+}
+#endif /* CONFIG_FTRACE_EARLY */
 
 static ssize_t
 tracing_max_lat_read(struct file *filp, char __user *ubuf,
@@ -2841,22 +2931,38 @@ static struct file_operations tracing_mark_fops = {
 
 #ifdef CONFIG_DYNAMIC_FTRACE
 
-static ssize_t
-tracing_read_long(struct file *filp, char __user *ubuf,
-		  size_t cnt, loff_t *ppos)
+int __weak ftrace_arch_read_dyn_info(char *buf, int size)
 {
-	unsigned long *p = filp->private_data;
-	char buf[64];
-	int r;
-
-	r = sprintf(buf, "%ld\n", *p);
-
-	return simple_read_from_buffer(ubuf, cnt, ppos, buf, r);
+	return 0;
 }
 
-static struct file_operations tracing_read_long_fops = {
+static ssize_t
+tracing_read_dyn_info(struct file *filp, char __user *ubuf,
+		  size_t cnt, loff_t *ppos)
+{
+	static char ftrace_dyn_info_buffer[1024];
+	static DEFINE_MUTEX(dyn_info_mutex);
+	unsigned long *p = filp->private_data;
+	char *buf = ftrace_dyn_info_buffer;
+	int size = ARRAY_SIZE(ftrace_dyn_info_buffer);
+	int r;
+
+	mutex_lock(&dyn_info_mutex);
+	r = sprintf(buf, "%ld ", *p);
+
+	r += ftrace_arch_read_dyn_info(buf+r, (size-1)-r);
+	buf[r++] = '\n';
+
+	r = simple_read_from_buffer(ubuf, cnt, ppos, buf, r);
+
+	mutex_unlock(&dyn_info_mutex);
+
+	return r;
+}
+
+static struct file_operations tracing_dyn_info_fops = {
 	.open		= tracing_open_generic,
-	.read		= tracing_read_long,
+	.read		= tracing_read_dyn_info,
 };
 #endif
 
@@ -2965,7 +3071,7 @@ static __init int tracer_init_debugfs(void)
 #ifdef CONFIG_DYNAMIC_FTRACE
 	entry = debugfs_create_file("dyn_ftrace_total_info", 0444, d_tracer,
 				    &ftrace_update_tot_cnt,
-				    &tracing_read_long_fops);
+				    &tracing_dyn_info_fops);
 	if (!entry)
 		pr_warning("Could not create debugfs "
 			   "'dyn_ftrace_total_info' entry\n");
@@ -3173,7 +3279,11 @@ void ftrace_dump(void)
 	spin_unlock_irqrestore(&ftrace_dump_lock, flags);
 }
 
+#ifndef CONFIG_FTRACE_EARLY
 __init static int tracer_alloc_buffers(void)
+#else
+__init int tracer_alloc_buffers(void)
+#endif
 {
 	struct trace_array_cpu *data;
 	int i;

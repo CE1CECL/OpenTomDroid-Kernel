@@ -156,6 +156,12 @@ struct sk_buff *__skb_recv_datagram(struct sock *sk, unsigned flags,
 	if (error)
 		goto no_packet;
 
+#ifdef CONFIG_INTERPEAK
+	if (sk && sk->sk_socket->ops->skb_recv_datagram
+	    && ((sk->sk_family == AF_INET) || (sk->sk_family == AF_INET6)))
+	  return sk->sk_socket->ops->skb_recv_datagram(sk, flags, *peeked, err);
+#endif
+
 	timeo = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
 
 	do {

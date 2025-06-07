@@ -30,7 +30,7 @@
 #include <linux/completion.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
-
+#include <linux/platform_device.h>
 #include <asm/system.h>
 
 /*
@@ -133,6 +133,13 @@ static struct task_struct *kapmd_tsk;
 
 static DECLARE_WAIT_QUEUE_HEAD(apm_waitqueue);
 static DECLARE_WAIT_QUEUE_HEAD(apm_suspend_waitqueue);
+
+/*
+ * TomTom Work needs more userland suspend time because of their TTWdaemon, so
+ * we added suspend_ack_timeout which can be set via sysfs to extend the time 
+ * userland gets to confirm the suspend preventing the kernel from "just" going into suspend.
+ */
+static int suspend_ack_timeout = 30;
 
 /*
  * This is a list of everyone who has opened /dev/apm_bios
@@ -320,12 +327,8 @@ apm_ioctl(struct inode * inode, struct file *filp, u_int cmd, u_long arg)
 			as->suspend_state = SUSPEND_WAIT;
 			mutex_unlock(&state_lock);
 
-			/*
-			 * Otherwise it is a request to suspend the system.
-			 * Just invoke pm_suspend(), we'll handle it from
-			 * there via the notifier.
-			 */
-			as->suspend_result = pm_suspend(PM_SUSPEND_MEM);
+			apm_queue_event(APM_USER_SUSPEND);
+			return 0;
 		}
 
 		mutex_lock(&state_lock);
@@ -534,6 +537,32 @@ static int kapmd(void *arg)
 	return 0;
 }
 
+static ssize_t apm_read_suspend_ack_timeout(struct device *dev, struct device_attribute *attr,
+		                                       char *buf)
+{
+	snprintf (buf, PAGE_SIZE, "%d\n", suspend_ack_timeout);
+
+	return strlen(buf)+1;
+}
+
+static ssize_t apm_write_suspend_ack_timeout(struct device *dev, struct device_attribute *attr,
+		                                        const char *buf, size_t n)
+{
+	int temp;
+
+	temp = suspend_ack_timeout;
+	sscanf(buf, "%d", &suspend_ack_timeout);
+	/* sanity check, time is in seconds */
+	if ( (suspend_ack_timeout < 1) || (suspend_ack_timeout > 120) ){
+		suspend_ack_timeout = temp;
+		return -EINVAL;
+	}
+  
+	return n;
+}
+
+static DEVICE_ATTR(ksuspend_timeout, S_IRUGO | S_IWUSR, apm_read_suspend_ack_timeout, apm_write_suspend_ack_timeout);
+
 static int apm_suspend_notifier(struct notifier_block *nb,
 				unsigned long event,
 				void *dummy)
@@ -578,7 +607,7 @@ static int apm_suspend_notifier(struct notifier_block *nb,
 		err = wait_event_interruptible_timeout(
 			apm_suspend_waitqueue,
 			atomic_read(&suspend_acks_pending) == 0,
-			5*HZ);
+			suspend_ack_timeout*HZ);
 
 		/* timed out */
 		if (err == 0) {
@@ -636,6 +665,18 @@ static int apm_suspend_notifier(struct notifier_block *nb,
 		up_read(&user_list_lock);
 		mutex_unlock(&state_lock);
 
+		/*
+		 * Added to re-move multiple suspend events caused by pressing
+		 * the powerbutton while resuming (on a short button press)
+		 * and therefore possibly queing multiple
+		 * suspend events causing the device to suspend again right after a valid resume..
+		 */	
+		spin_lock_irq(&kapmd_queue);
+		while (!queue_empty(&kapmd_queue)){
+			event = queue_get_event(&kapmd_queue);
+		}
+		spin_unlock_irq(&kapmd_queue);
+
 		wake_up(&apm_suspend_waitqueue);
 		return NOTIFY_OK;
 
@@ -646,6 +687,36 @@ static int apm_suspend_notifier(struct notifier_block *nb,
 
 static struct notifier_block apm_notif_block = {
 	.notifier_call = apm_suspend_notifier,
+};
+
+static int apm_remove(struct platform_device *pdev)
+{	
+	device_remove_file(&pdev->dev, &dev_attr_ksuspend_timeout);
+	return 0;
+}
+
+static int apm_probe(struct platform_device *pdev)
+{
+	struct apm_pdata *pdata;
+
+	pdata = (struct apm_pdata *) pdev->dev.platform_data;
+	  
+	if( device_create_file(&pdev->dev, &dev_attr_ksuspend_timeout))
+	{
+		printk(KERN_ERR "apm: unable to create sysfs file\n");
+		return -ENODEV;
+	}
+
+	return 0;
+}
+
+static struct platform_driver apmdriver = {
+	.probe = apm_probe,
+	.remove = apm_remove,
+	.driver = {
+		.owner = THIS_MODULE,
+		.name = "apm_emulation",
+	},
 };
 
 static int __init apm_init(void)
@@ -674,6 +745,10 @@ static int __init apm_init(void)
 		goto out_stop;
 
 	ret = register_pm_notifier(&apm_notif_block);
+	if (ret)
+		goto out_unregister;
+
+	ret = platform_driver_register(&apmdriver);	
 	if (ret)
 		goto out_unregister;
 

@@ -188,6 +188,11 @@ void __init gic_dist_init(unsigned int gic_nr, void __iomem *base,
 	gic_data[gic_nr].dist_base = base;
 	gic_data[gic_nr].irq_offset = (irq_start - 1) & ~31;
 
+#ifdef CONFIG_ARCH_BCM2850
+	if(!irq_start)
+		gic_data[gic_nr].irq_offset = irq_start;
+#endif
+
 	writel(0, base + GIC_DIST_CTRL);
 
 	/*
@@ -222,6 +227,14 @@ void __init gic_dist_init(unsigned int gic_nr, void __iomem *base,
 	for (i = 0; i < max_irq; i += 4)
 		writel(0xa0a0a0a0, base + GIC_DIST_PRI + i * 4 / 4);
 
+#ifdef CONFIG_ARCH_BCM2850
+	/*
+	 * Clear all pending interrupts
+	 */
+	for (i = 0; i < max_irq; i += 32)
+		writel(0xffffffff, base + GIC_DIST_PENDING_CLEAR + i * 4 / 32);
+#endif
+
 	/*
 	 * Disable all interrupts.
 	 */
@@ -248,8 +261,31 @@ void __cpuinit gic_cpu_init(unsigned int gic_nr, void __iomem *base)
 
 	gic_data[gic_nr].cpu_base = base;
 
+#ifdef CONFIG_ARCH_BCM2850
+	/*
+	 * FIXME: This may change later.
+	 * Currently, we are the "secure software" running,
+	 * So, set all the necessary bits in ICCICR to receive
+	 * every interrupt possible.
+	 *
+	 * ICCICR = SBPR | AckCtl | EnableNS | EnableS
+	 *
+	 * Also, do not make secure-interrupts as FIQ for now.
+	 * Since, currently all interrupts are secure, and linux
+	 * does not handle FIQs
+	 */
+
+	writel(0x17, base + GIC_CPU_CTRL);
+
+	/* FIXME:
+	 * Allow all interrupts into the CPU, no
+	 * interrupt priority decisions for now.
+	 */
+	writel(0xff, base + GIC_CPU_PRIMASK);
+#else
 	writel(0xf0, base + GIC_CPU_PRIMASK);
 	writel(1, base + GIC_CPU_CTRL);
+#endif
 }
 
 #ifdef CONFIG_SMP

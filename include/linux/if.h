@@ -178,6 +178,15 @@ struct ifreq
 		char	ifru_newname[IFNAMSIZ];
 		void __user *	ifru_data;
 		struct	if_settings ifru_settings;
+		/* CONFIG INTERPEAK >>> */
+		/* IPNET extensions */
+		/* Assign the interface to a specific virtual router */
+		__u16   ifru_vr;
+		/* Get/set the cost of using this interface */
+		__u32   ifru_metric;
+		/* Get the public interface index */
+		__u32   ifru_ifindex;
+		/* <<< CONFIG INTERPEAK */
 	} ifr_ifru;
 };
 

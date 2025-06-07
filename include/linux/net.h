@@ -58,6 +58,10 @@ typedef enum {
 #include <linux/wait.h>
 #include <linux/fcntl.h>	/* For O_CLOEXEC and O_NONBLOCK */
 
+#ifdef CONFIG_INTERPEAK
+#include <linux/fs.h>
+#endif
+
 struct poll_table_struct;
 struct pipe_inode_info;
 struct inode;
@@ -187,6 +191,15 @@ struct proto_ops {
 				      int offset, size_t size, int flags);
 	ssize_t 	(*splice_read)(struct socket *sock,  loff_t *ppos,
 				       struct pipe_inode_info *pipe, size_t len, unsigned int flags);
+#ifdef CONFIG_INTERPEAK
+       struct sk_buff * (*skb_recv_datagram)(struct sock *sk, unsigned flags,
+					     int noblock, int *err);
+       int              (*skb_tcp_data_recv)(struct sock *sk, read_descriptor_t *rdesc,
+					     int (*recv_actor)(read_descriptor_t *r,
+							       struct sk_buff *skb,
+							       unsigned int offset ,
+							       size_t len));
+#endif
 };
 
 struct net_proto_family {

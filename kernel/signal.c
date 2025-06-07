@@ -1079,6 +1079,7 @@ kill_proc_info(int sig, struct siginfo *info, pid_t pid)
 	rcu_read_unlock();
 	return error;
 }
+EXPORT_SYMBOL(kill_proc_info);
 
 /* like kill_pid_info(), but doesn't use uid/euid of "current" */
 int kill_pid_info_as_uid(int sig, struct siginfo *info, struct pid *pid,

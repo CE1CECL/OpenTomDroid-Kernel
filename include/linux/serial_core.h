@@ -155,8 +155,11 @@
 
 #define PORT_SC26XX	82
 
+
 /* SH-SCI */
 #define PORT_SCIFA	83
+
+#define PORT_S3C6400	255
 
 #ifdef __KERNEL__
 
@@ -168,6 +171,7 @@
 #include <linux/tty.h>
 #include <linux/mutex.h>
 #include <linux/sysrq.h>
+#include <linux/pps.h>
 
 struct uart_port;
 struct uart_info;
@@ -492,9 +496,17 @@ static inline void
 uart_handle_dcd_change(struct uart_port *port, unsigned int status)
 {
 	struct uart_info *info = port->info;
+	struct tty_ldisc *ld = tty_ldisc_ref(info->port.tty);
+	struct timespec ts;
+
+	if (ld && ld->ops->dcd_change)
+#ifdef CONFIG_PPS_IRQ_EVENTS
+		ts = pps_irq_ts[port->irq];
+#else
+		getnstimeofday(&ts);
+#endif
 
 	port->icount.dcd++;
-
 #ifdef CONFIG_HARD_PPS
 	if ((port->flags & UPF_HARDPPS_CD) && status)
 		hardpps();
@@ -506,6 +518,11 @@ uart_handle_dcd_change(struct uart_port *port, unsigned int status)
 		else if (info->port.tty)
 			tty_hangup(info->port.tty);
 	}
+
+	if (ld && ld->ops->dcd_change)
+		ld->ops->dcd_change(info->port.tty, status, &ts);
+	if (ld)
+		tty_ldisc_deref(ld);
 }
 
 /**

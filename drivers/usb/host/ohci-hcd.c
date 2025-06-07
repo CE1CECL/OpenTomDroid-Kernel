@@ -997,7 +997,7 @@ MODULE_LICENSE ("GPL");
 #define SA1111_DRIVER		ohci_hcd_sa1111_driver
 #endif
 
-#ifdef CONFIG_ARCH_S3C2410
+#if defined(CONFIG_ARCH_S3C2410) || defined(CONFIG_ARCH_S3C64XX) || defined(CONFIG_ARCH_S5PC1XX)
 #include "ohci-s3c2410.c"
 #define PLATFORM_DRIVER		ohci_hcd_s3c2410_driver
 #endif
@@ -1237,4 +1237,3 @@ static void __exit ohci_hcd_mod_exit(void)
 	clear_bit(USB_OHCI_LOADED, &usb_hcds_loaded);
 }
 module_exit(ohci_hcd_mod_exit);
-

@@ -17,6 +17,13 @@
 
 #ifndef __ASSEMBLY__
 
+#ifdef CONFIG_STRICT_DEVMEM
+extern int devmem_is_allowed (unsigned long);
+#else
+	#define devmem_is_allowed(pnf) 1
+#endif
+
+
 #ifndef CONFIG_MMU
 
 #include "page-nommu.h"

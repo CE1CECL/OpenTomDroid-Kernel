@@ -13,6 +13,7 @@
 #include <linux/security.h>
 #include <linux/module.h>
 #include <linux/uaccess.h>
+#include <trace/fs.h>
 #include <linux/writeback.h>
 #include <linux/buffer_head.h>
 
@@ -228,7 +229,7 @@ static int ioctl_fiemap(struct file *filp, unsigned long arg)
 
 #ifdef CONFIG_BLOCK
 
-#define blk_to_logical(inode, blk) (blk << (inode)->i_blkbits)
+#define blk_to_logical(inode, blk) (((u64)blk) << (inode)->i_blkbits)
 #define logical_to_blk(inode, offset) (offset >> (inode)->i_blkbits);
 
 /*
@@ -481,6 +482,8 @@ SYSCALL_DEFINE3(ioctl, unsigned int, fd, unsigned int, cmd, unsigned long, arg)
 	filp = fget_light(fd, &fput_needed);
 	if (!filp)
 		goto out;
+
+	trace_fs_ioctl(fd, cmd, arg);
 
 	error = security_file_ioctl(filp, cmd, arg);
 	if (error)

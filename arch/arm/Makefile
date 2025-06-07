@@ -11,6 +11,9 @@
 # Copyright (C) 1995-2001 by Russell King
 
 LDFLAGS_vmlinux	:=-p --no-undefined -X
+ifeq ($(CONFIG_CPU_ENDIAN_BE8),y)
+LDFLAGS_vmlinux	+= --be8
+endif
 CPPFLAGS_vmlinux.lds = -DTEXT_OFFSET=$(TEXT_OFFSET)
 OBJCOPYFLAGS	:=-O binary -R .note -R .note.gnu.build-id -R .comment -S
 GZFLAGS		:=-9
@@ -30,6 +33,7 @@ endif
 ifeq ($(CONFIG_FRAME_POINTER),y)
 KBUILD_CFLAGS	+=-fno-omit-frame-pointer -mapcs -mno-sched-prolog
 endif
+KBUILD_CFLAGS	+=-fno-delete-null-pointer-checks
 
 ifeq ($(CONFIG_CPU_BIG_ENDIAN),y)
 KBUILD_CPPFLAGS	+= -mbig-endian
@@ -84,9 +88,19 @@ else
 CFLAGS_ABI	:=$(call cc-option,-mapcs-32,-mabi=apcs-gnu) $(call cc-option,-mno-thumb-interwork,)
 endif
 
+ifeq ($(CONFIG_ARM_UNWIND),y)
+CFLAGS_ABI	+=-funwind-tables
+endif
+
+ifeq ($(CONFIG_THUMB2_KERNEL),y)
+AFLAGS_NOWARN	:=$(call as-option,-Wa$(comma)-mno-warn-deprecated,-Wa$(comma)-W)
+CFLAGS_THUMB2	:=-mthumb $(AFLAGS_NOWARN)
+AFLAGS_THUMB2	:=-Wa$(comma)-mthumb $(AFLAGS_NOWARN)
+endif
+
 # Need -Uarm for gcc < 3.x
-KBUILD_CFLAGS	+=$(CFLAGS_ABI) $(arch-y) $(tune-y) $(call cc-option,-mshort-load-bytes,$(call cc-option,-malignment-traps,)) -msoft-float -Uarm
-KBUILD_AFLAGS	+=$(CFLAGS_ABI) $(arch-y) $(tune-y) -msoft-float
+KBUILD_CFLAGS	+=$(CFLAGS_ABI) $(CFLAGS_THUMB2) $(arch-y) $(tune-y) $(call cc-option,-mshort-load-bytes,$(call cc-option,-malignment-traps,)) -msoft-float -Uarm
+KBUILD_AFLAGS	+=$(CFLAGS_ABI) $(AFLAGS_THUMB2) $(arch-y) $(tune-y) -include asm/unified.h -msoft-float
 
 CHECKFLAGS	+= -D__arm__
 
@@ -121,7 +135,17 @@ endif
  machine-$(CONFIG_ARCH_OMAP3)	   := omap2
     plat-$(CONFIG_ARCH_OMAP)	   := omap
  machine-$(CONFIG_ARCH_S3C2410)	   := s3c2410 s3c2400 s3c2412 s3c2440 s3c2442 s3c2443
+ machine-$(CONFIG_ARCH_S3C24A0)	   := s3c24a0
     plat-$(CONFIG_PLAT_S3C24XX)	   := s3c24xx s3c
+ machine-$(CONFIG_ARCH_S3C64XX)	   := s3c6400 s3c6410
+    plat-$(CONFIG_PLAT_S3C64XX)	   := s3c64xx s3c
+ machine-$(CONFIG_ARCH_S5P64XX)	   := s5p6440
+    plat-$(CONFIG_PLAT_S5P64XX)	   := s5p64xx s3c
+ machine-$(CONFIG_ARCH_S5PC1XX)	   := s5pc100 s5pc110
+    plat-$(CONFIG_PLAT_S5PC1XX)	   := s5pc1xx s3c
+    plat-$(CONFIG_PLAT_TOMTOM)	   += tomtom
+    plat-$(CONFIG_PLAT_MENDOZA)    += tomtom/mendoza
+    plat-$(CONFIG_PLAT_IRVINE)     += tomtom/irvine
  machine-$(CONFIG_ARCH_LH7A40X)	   := lh7a40x
  machine-$(CONFIG_ARCH_VERSATILE)  := versatile
  machine-$(CONFIG_ARCH_IMX)	   := imx
@@ -133,6 +157,9 @@ endif
  machine-$(CONFIG_ARCH_PNX4008)	   := pnx4008
  machine-$(CONFIG_ARCH_NETX)	   := netx
  machine-$(CONFIG_ARCH_NS9XXX)	   := ns9xxx
+    plat-$(CONFIG_PLAT_BCM476X)    += bcm476x
+ machine-$(CONFIG_ARCH_BCM4760)	   := bcm476x
+  incdir-$(CONFIG_ARCH_BCM4760)	   := bcm4760
  machine-$(CONFIG_ARCH_DAVINCI)	   := davinci
  machine-$(CONFIG_ARCH_KIRKWOOD)   := kirkwood
  machine-$(CONFIG_ARCH_KS8695)     := ks8695
@@ -154,6 +181,18 @@ endif
 
 # The byte offset of the kernel image in RAM from the start of RAM.
 TEXT_OFFSET := $(textofs-y)
+
+ifeq ($(CONFIG_XIP_UBOOT_HDR),y)
+  # we're adding a u-boot header with mkimage so offset the address 0x40
+  CONFIG_XIP_PHYS_ADDR := $(shell echo $(CONFIG_XIP_PHYS_ADDR) 0x40 | \
+		awk --non-decimal-data '/[:xdigit:]/ \
+		 { printf("0x%x\n", $$1 + $$2) }' )
+endif
+
+ifeq ($(incdir-y),)
+incdir-y := $(machine-y)
+endif
+INCDIR   := arch-$(incdir-y)
 
 # The first directory contains additional information for the boot setup code
 ifneq ($(machine-y),)
@@ -205,14 +244,44 @@ boot := arch/arm/boot
 #	them changed.  We use .arch to indicate when they were updated
 #	last, otherwise make uses the target directory mtime.
 
+ifeq ($(CONFIG_PLAT_BCM476X),y)
+MAKETOOLSDEP := include/asm-arm/.arch
+include/asm-arm/.arch: $(wildcard include/config/arch/*.h) include/config/auto.conf
+	@echo '  SYMLINK include/asm-arm/arch -> include/asm-arm/$(INCDIR)'
+ifneq ($(KBUILD_SRC),)
+	$(Q)mkdir -p include/asm-arm
+	$(Q)ln -fsn $(srctree)/include/asm-arm/$(INCDIR) include/asm-arm/arch
+	$(Q)ln -fsn $(srctree)/include/asm-arm/$(INCDIR) include/mach
+	$(Q)ln -fsn $(srctree)/include/asm-arm/$(INCDIR)/hardware.h include/asm-arm/hardware.h
+	$(Q)ln -fsn $(srctree)/arch/arm/include/asm/sizes.h include/asm-arm/sizes.h
+	$(Q)ln -fsn $(srctree)/arch/arm/include/asm/gpio.h include/asm-arm/gpio.h
+	$(Q)ln -fsn $(srctree)/arch/arm/include/asm/page.h include/asm-arm/page.h
+	$(Q)ln -fsn $(srctree)/arch/arm/include/asm/setup.h include/asm-arm/setup.h
+	$(Q)ln -fsn $(srctree)/arch/arm/include/asm/memory.h include/asm-arm/memory.h
+	$(Q)ln -fsn $(srctree)/arch/arm/include/asm/linkage.h include/asm-arm/linkage.h
+	$(Q)ln -fsn $(srctree)/arch/arm/include/asm/page-nommu.h include/asm-arm/page-nommu.h
+	$(Q)ln -fsn $(srctree)/arch/arm/include/asm/posix_types.h include/asm-arm/posix_types.h
+	$(Q)ln -fsn $(srctree)/arch/arm/include/asm/errno.h include/asm-arm/errno.h
+	$(Q)ln -fsn $(srctree)/include/linux/semaphore.h include/asm-arm/semaphore.h
+else
+	$(Q)ln -fsn $(INCDIR) include/asm-arm/arch
+endif
+	@touch $@
+else
+MAKETOOLSDEP	:=
+endif
+
 archprepare: maketools
 
 PHONY += maketools FORCE
-maketools: include/linux/version.h FORCE
+maketools: include/linux/version.h $(MAKETOOLSDEP) FORCE
 	$(Q)$(MAKE) $(build)=arch/arm/tools include/asm-arm/mach-types.h
 
 # Convert bzImage to zImage
 bzImage: zImage
+
+# These targets cannot be built in parallel
+.NOTPARALLEL: zImage Image xipImage bootpImage uImage
 
 zImage Image xipImage bootpImage uImage: vmlinux
 	$(Q)$(MAKE) $(build)=$(boot) MACHINE=$(MACHINE) $(boot)/$@

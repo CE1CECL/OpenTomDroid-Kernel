@@ -20,6 +20,11 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_WM8903
 	select SND_SOC_WM8971
 	select SND_SOC_WM8990
+	select SND_SOC_BCM476X	
+	select SND_SOC_S5M8751
+	select SND_SOC_BC6 
+	select SND_SOC_ADAU1761
+	select SND_SOC_TLV320ADC3101
         help
           Normally ASoC codec drivers are only built if a machine driver which
           uses them is also built since they are only usable with a machine
@@ -78,6 +83,9 @@ config SND_SOC_TLV320AIC3X
 config SND_SOC_UDA1380
         tristate
 
+config SND_SOC_BCM476X
+	tristate
+
 config SND_SOC_WM8510
 	tristate
 
@@ -110,3 +118,16 @@ config SND_SOC_WM9712
 
 config SND_SOC_WM9713
 	tristate
+
+config SND_SOC_S5M8751
+	tristate
+
+config SND_SOC_ADAU1761
+	tristate
+
+config SND_SOC_BC6
+	tristate
+
+config SND_SOC_TLV320ADC3101
+	tristate
+

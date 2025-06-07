@@ -74,6 +74,12 @@ config SND_DUMMY
 	  To compile this driver as a module, choose M here: the module
 	  will be called snd-dummy.
 
+config SND_TT_DUMMY
+	tristate "TomTom Dummy (/dev/null) soundcard"
+	select SND_PCM
+	help
+	  Same as the dummy ALSA driver, but with Nashville extensions.
+
 config SND_VIRMIDI
 	tristate "Virtual MIDI soundcard"
 	depends on SND_SEQUENCER

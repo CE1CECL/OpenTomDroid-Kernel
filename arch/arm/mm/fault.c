@@ -19,9 +19,26 @@
 #include <asm/system.h>
 #include <asm/pgtable.h>
 #include <asm/tlbflush.h>
+#ifdef CONFIG_KMEMCHECK
+#include <asm/kmemcheck.h>
+#endif
 
 #include "fault.h"
 
+/*
+ * Fault status register encodings.  We steal bit 31 for our own purposes.
+ */
+#define FSR_LNX_PF		(1 << 31)
+#define FSR_WRITE		(1 << 11)
+#define FSR_FS4			(1 << 10)
+#define FSR_FS3_0		(15)
+
+static inline int fsr_fs(unsigned int fsr)
+{
+	return (fsr & FSR_FS3_0) | (fsr & FSR_FS4) >> 6;
+}
+
+#ifdef CONFIG_MMU
 
 #ifdef CONFIG_KPROBES
 static inline int notify_page_fault(struct pt_regs *regs, unsigned int fsr)
@@ -95,6 +112,10 @@ void show_pte(struct mm_struct *mm, unsigned long addr)
 
 	printk("\n");
 }
+#else					/* CONFIG_MMU */
+void show_pte(struct mm_struct *mm, unsigned long addr)
+{ }
+#endif					/* CONFIG_MMU */
 
 /*
  * Oops.  The kernel tried to access some page that wasn't present.
@@ -103,6 +124,19 @@ static void
 __do_kernel_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 		  struct pt_regs *regs)
 {
+#ifdef CONFIG_KMEMCHECK
+	if (addr > TASK_SIZE) {
+		pte_t *pte_k;
+		int level = 0;
+		int error_code = fsr & (1 << 11);
+		pte_k = lookup_address(addr, &level);
+		mb();
+		if (pte_k && !level && pte_hidden(*pte_k)) {
+			kmemcheck_fault(regs, addr, error_code, pte_k);
+			return;
+		}
+	}
+#endif
 	/*
 	 * Are we prepared to handle this kernel fault?
 	 */
@@ -169,21 +203,39 @@ void do_bad_area(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 		__do_kernel_fault(mm, addr, fsr, regs);
 }
 
+#ifdef CONFIG_MMU
 #define VM_FAULT_BADMAP		0x010000
 #define VM_FAULT_BADACCESS	0x020000
 
-static int
+/*
+ * Check that the permissions on the VMA allow for the fault which occurred.
+ * If we encountered a write fault, we must have write permission, otherwise
+ * we allow any permission.
+ */
+static inline bool access_error(unsigned int fsr, struct vm_area_struct *vma)
+{
+	unsigned int mask = VM_READ | VM_WRITE | VM_EXEC;
+
+	if (fsr & FSR_WRITE)
+		mask = VM_WRITE;
+	if (fsr & FSR_LNX_PF)
+		mask = VM_EXEC;
+
+	return vma->vm_flags & mask ? false : true;
+}
+
+static int __kprobes
 __do_page_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 		struct task_struct *tsk)
 {
 	struct vm_area_struct *vma;
-	int fault, mask;
+	int fault;
 
 	vma = find_vma(mm, addr);
 	fault = VM_FAULT_BADMAP;
-	if (!vma)
+	if (unlikely(!vma))
 		goto out;
-	if (vma->vm_start > addr)
+	if (unlikely(vma->vm_start > addr))
 		goto check_stack;
 
 	/*
@@ -191,46 +243,23 @@ __do_page_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 	 * memory access, so we can handle it.
 	 */
 good_area:
-	if (fsr & (1 << 11)) /* write? */
-		mask = VM_WRITE;
-	else
-		mask = VM_READ|VM_EXEC|VM_WRITE;
-
-	fault = VM_FAULT_BADACCESS;
-	if (!(vma->vm_flags & mask))
+	if (access_error(fsr, vma)) {
+		fault = VM_FAULT_BADACCESS;
 		goto out;
+	}
 
 	/*
-	 * If for any reason at all we couldn't handle
-	 * the fault, make sure we exit gracefully rather
-	 * than endlessly redo the fault.
+	 * If for any reason at all we couldn't handle the fault, make
+	 * sure we exit gracefully rather than endlessly redo the fault.
 	 */
-survive:
-	fault = handle_mm_fault(mm, vma, addr & PAGE_MASK, fsr & (1 << 11));
-	if (unlikely(fault & VM_FAULT_ERROR)) {
-		if (fault & VM_FAULT_OOM)
-			goto out_of_memory;
-		else if (fault & VM_FAULT_SIGBUS)
-			return fault;
-		BUG();
-	}
+	fault = handle_mm_fault(mm, vma, addr & PAGE_MASK, (fsr & FSR_WRITE) ? FAULT_FLAG_WRITE : 0);
+	if (unlikely(fault & VM_FAULT_ERROR))
+		return fault;
 	if (fault & VM_FAULT_MAJOR)
 		tsk->maj_flt++;
 	else
 		tsk->min_flt++;
 	return fault;
-
-out_of_memory:
-	if (!is_global_init(tsk))
-		goto out;
-
-	/*
-	 * If we are out of memory for pid1, sleep for a while and retry
-	 */
-	up_read(&mm->mmap_sem);
-	yield();
-	down_read(&mm->mmap_sem);
-	goto survive;
 
 check_stack:
 	if (vma->vm_flags & VM_GROWSDOWN && !expand_stack(vma, addr))
@@ -320,6 +349,13 @@ no_context:
 	__do_kernel_fault(mm, addr, fsr, regs);
 	return 0;
 }
+#else					/* CONFIG_MMU */
+static int
+do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
+{
+	return 0;
+}
+#endif					/* CONFIG_MMU */
 
 /*
  * First Level Translation Fault Handler
@@ -338,6 +374,7 @@ no_context:
  * interrupt or a critical region, and should only copy the information
  * from the master page table, nothing more.
  */
+#ifdef CONFIG_MMU
 static int __kprobes
 do_translation_fault(unsigned long addr, unsigned int fsr,
 		     struct pt_regs *regs)
@@ -376,6 +413,14 @@ bad_area:
 	do_bad_area(addr, fsr, regs);
 	return 0;
 }
+#else					/* CONFIG_MMU */
+static int
+do_translation_fault(unsigned long addr, unsigned int fsr,
+		     struct pt_regs *regs)
+{
+	return 0;
+}
+#endif					/* CONFIG_MMU */
 
 /*
  * Some section permission faults need to be handled gracefully.
@@ -463,10 +508,10 @@ hook_fault_code(int nr, int (*fn)(unsigned long, unsigned int, struct pt_regs *)
 asmlinkage void __exception
 do_DataAbort(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 {
-	const struct fsr_info *inf = fsr_info + (fsr & 15) + ((fsr & (1 << 10)) >> 6);
+	const struct fsr_info *inf = fsr_info + fsr_fs(fsr);
 	struct siginfo info;
 
-	if (!inf->fn(addr, fsr, regs))
+	if (!inf->fn(addr, fsr & ~FSR_LNX_PF, regs))
 		return;
 
 	printk(KERN_ALERT "Unhandled fault: %s (0x%03x) at 0x%08lx\n",
@@ -479,9 +524,58 @@ do_DataAbort(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 	arm_notify_die("", regs, &info, fsr, 0);
 }
 
+
+static struct fsr_info ifsr_info[] = {
+	{ do_bad,		SIGBUS,  0,		"unknown 0"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 1"			   },
+	{ do_bad,		SIGBUS,  0,		"debug event"			   },
+	{ do_bad,		SIGSEGV, SEGV_ACCERR,	"section access flag fault"	   },
+	{ do_bad,		SIGBUS,  0,		"unknown 4"			   },
+	{ do_translation_fault,	SIGSEGV, SEGV_MAPERR,	"section translation fault"	   },
+	{ do_bad,		SIGSEGV, SEGV_ACCERR,	"page access flag fault"	   },
+	{ do_page_fault,	SIGSEGV, SEGV_MAPERR,	"page translation fault"	   },
+	{ do_bad,		SIGBUS,	 0,		"external abort on non-linefetch"  },
+	{ do_bad,		SIGSEGV, SEGV_ACCERR,	"section domain fault"		   },
+	{ do_bad,		SIGBUS,  0,		"unknown 10"			   },
+	{ do_bad,		SIGSEGV, SEGV_ACCERR,	"page domain fault"		   },
+	{ do_bad,		SIGBUS,	 0,		"external abort on translation"	   },
+	{ do_sect_fault,	SIGSEGV, SEGV_ACCERR,	"section permission fault"	   },
+	{ do_bad,		SIGBUS,	 0,		"external abort on translation"	   },
+	{ do_page_fault,	SIGSEGV, SEGV_ACCERR,	"page permission fault"		   },
+	{ do_bad,		SIGBUS,  0,		"unknown 16"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 17"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 18"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 19"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 20"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 21"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 22"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 23"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 24"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 25"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 26"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 27"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 28"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 29"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 30"			   },
+	{ do_bad,		SIGBUS,  0,		"unknown 31"			   },
+};
+
 asmlinkage void __exception
-do_PrefetchAbort(unsigned long addr, struct pt_regs *regs)
+do_PrefetchAbort(unsigned long addr, unsigned int ifsr, struct pt_regs *regs)
 {
-	do_translation_fault(addr, 0, regs);
+	const struct fsr_info *inf = ifsr_info + fsr_fs(ifsr);
+	struct siginfo info;
+
+	if (!inf->fn(addr, ifsr | FSR_LNX_PF, regs))
+		return;
+
+	printk(KERN_ALERT "Unhandled prefetch abort: %s (0x%03x) at 0x%08lx\n",
+		inf->name, ifsr, addr);
+
+	info.si_signo = inf->sig;
+	info.si_errno = 0;
+	info.si_code  = inf->code;
+	info.si_addr  = (void __user *)addr;
+	arm_notify_die("", regs, &info, ifsr, 0);
 }
 

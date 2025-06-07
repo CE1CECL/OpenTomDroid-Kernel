@@ -644,6 +644,18 @@ struct input_absinfo {
 #define ABS_TOOL_WIDTH		0x1c
 #define ABS_VOLUME		0x20
 #define ABS_MISC		0x28
+
+#define ABS_FINGERS             0x29                                          
+#define ABS_FINGER2_X           0x2a                                          
+#define ABS_FINGER2_Y           0x2b                                          
+#define ABS_GESTURE             0x2c    
+#define ABS_GESTURE_INFO	0x2d
+
+#define ABS_BB_X1               0x3b
+#define ABS_BB_Y1               0x3c
+#define ABS_BB_X2               0x3d
+#define ABS_BB_Y2               0x3e
+
 #define ABS_MAX			0x3f
 #define ABS_CNT			(ABS_MAX+1)
 

@@ -39,6 +39,10 @@
 #include <linux/hrtimer.h>
 #include <linux/oom.h>
 
+#ifdef CONFIG_BCM_VC02
+#  include <linux/broadcom/vc.h>
+#endif
+
 #include <asm/ptrace.h>
 #include <asm/irq_regs.h>
 
@@ -286,6 +290,33 @@ static struct sysrq_key_op sysrq_showmem_op = {
 	.enable_mask	= SYSRQ_ENABLE_DUMP,
 };
 
+#ifdef CONFIG_BCM_VC02
+static void sysrq_handle_show_vc02(int key, struct pt_regs *pt_regs,
+				 struct tty_struct *tty)
+{
+	show_vc02();
+}
+static struct sysrq_key_op sysrq_show_vc02_op = {
+	.handler	= sysrq_handle_show_vc02,
+	.help_msg	= "showVc02",
+	.action_msg	= "Show VC02",
+};
+
+void show_vc02_log( void );
+static void sysrq_handle_show_vc02_log(int key, struct pt_regs *pt_regs,
+				 struct tty_struct *tty)
+{
+	show_vc02_log();
+}
+static struct sysrq_key_op sysrq_show_vc02_log_op = {
+	.handler	= sysrq_handle_show_vc02_log,
+	.help_msg	= "showLog",
+	.action_msg	= "Show VC02 Log",
+};
+
+
+#endif
+
 /*
  * Signal sysrq helper function.  Sends a signal to all user processes.
  */
@@ -387,7 +418,11 @@ static struct sysrq_key_op *sysrq_key_table[36] = {
 #ifdef CONFIG_SMP
 	&sysrq_showallcpus_op,		/* l */
 #else
+#ifdef CONFIG_BCM_VC02
+	&sysrq_show_vc02_log_op, /* l */
+#else
 	NULL,				/* l */
+#endif
 #endif
 	&sysrq_showmem_op,		/* m */
 	&sysrq_unrt_op,			/* n */
@@ -399,8 +434,12 @@ static struct sysrq_key_op *sysrq_key_table[36] = {
 	&sysrq_sync_op,			/* s */
 	&sysrq_showstate_op,		/* t */
 	&sysrq_mountro_op,		/* u */
+#ifdef CONFIG_BCM_VC02
+	&sysrq_show_vc02_op, /* v */
+#else
 	/* v: May be registered at init time by SMP VOYAGER */
 	NULL,				/* v */
+#endif
 	&sysrq_showstate_blocked_op,	/* w */
 	/* x: May be registered on ppc/powerpc for xmon */
 	NULL,				/* x */

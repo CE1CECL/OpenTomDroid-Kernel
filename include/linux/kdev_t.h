@@ -35,6 +35,7 @@ static inline dev_t old_decode_dev(u16 val)
 
 static inline int new_valid_dev(dev_t dev)
 {
+   (void)dev;
 	return 1;
 }
 
@@ -54,6 +55,7 @@ static inline dev_t new_decode_dev(u32 dev)
 
 static inline int huge_valid_dev(dev_t dev)
 {
+   (void)dev;
 	return 1;
 }
 

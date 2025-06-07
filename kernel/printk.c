@@ -32,6 +32,7 @@
 #include <linux/security.h>
 #include <linux/bootmem.h>
 #include <linux/syscalls.h>
+#include <trace/kernel.h>
 
 #include <asm/uaccess.h>
 
@@ -43,6 +44,10 @@ void asmlinkage __attribute__((weak)) early_printk(const char *fmt, ...)
 }
 
 #define __LOG_BUF_LEN	(1 << CONFIG_LOG_BUF_SHIFT)
+
+#ifdef CONFIG_DEBUG_LL
+extern void printascii(char *);
+#endif
 
 /* printk's without a loglevel use this.. */
 #define DEFAULT_MESSAGE_LOGLEVEL 4 /* KERN_WARNING */
@@ -59,6 +64,7 @@ int console_printk[4] = {
 	MINIMUM_CONSOLE_LOGLEVEL,	/* minimum_console_loglevel */
 	DEFAULT_CONSOLE_LOGLEVEL,	/* default_console_loglevel */
 };
+EXPORT_SYMBOL_GPL(console_printk);
 
 /*
  * Low level drivers may need that to know if they can schedule in
@@ -66,6 +72,9 @@ int console_printk[4] = {
  */
 int oops_in_progress;
 EXPORT_SYMBOL(oops_in_progress);
+
+static void (*emit_crash_char_fn)(char c);
+static bool recursive_emit_crash_char;
 
 /*
  * console_sem protects the console_drivers list, and also
@@ -481,8 +490,35 @@ static void call_console_drivers(unsigned start, unsigned end)
 	_call_console_drivers(start_print, end, msg_level);
 }
 
+/*
+ * This emits a character intended for a crash log. We take special care
+ * to avoid recursive use so that we don't end up in an crash reporting loop.
+ */
+static void emit_crash_char(char c)
+{
+	static	bool in_call;
+
+	if (emit_crash_char_fn != NULL) {
+		/* Detect recursive calls and ignore them. This could happen
+		 * if the function we use to emit the character to the crash
+		 * log failed and called printk. Though we ignore the output,
+		 * we remember that we had a recursive call so that we can
+		 * report it later. */
+		if (in_call)
+			recursive_emit_crash_char = true;
+
+		else {
+			in_call = true;
+			emit_crash_char_fn(c);
+			in_call = false;
+		}
+	}
+}
+
 static void emit_log_char(char c)
 {
+	emit_crash_char(c);
+
 	LOG_BUF(log_end) = c;
 	log_end++;
 	if (log_end - log_start > log_buf_len)
@@ -491,6 +527,28 @@ static void emit_log_char(char c)
 		con_start = log_end - log_buf_len;
 	if (logged_chars < log_buf_len)
 		logged_chars++;
+}
+
+/*
+ * Register a function to emit a crash character
+ * @fn:	Function to register
+ */
+void register_emit_crash_char(void (*fn)(char c))
+{
+	emit_crash_char_fn = fn;
+}
+
+/*
+ * Unregister a function emiting a crash character
+ */
+void unregister_emit_crash_char()
+{
+	emit_crash_char_fn = NULL;
+
+	if (recursive_emit_crash_char) {
+		pr_err("emit_crash_char was called recursively!\n");
+		recursive_emit_crash_char = false;
+	}
 }
 
 /*
@@ -515,9 +573,9 @@ static void zap_locks(void)
 }
 
 #if defined(CONFIG_PRINTK_TIME)
-static int printk_time = 1;
+int printk_time = 1;
 #else
-static int printk_time = 0;
+int printk_time;
 #endif
 module_param_named(time, printk_time, bool, S_IRUGO | S_IWUSR);
 
@@ -561,6 +619,7 @@ asmlinkage int printk(const char *fmt, ...)
 	int r;
 
 	va_start(args, fmt);
+	_trace_kernel_printk(_RET_IP_);
 	r = vprintk(fmt, args);
 	va_end(args);
 
@@ -637,6 +696,8 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 	raw_local_irq_save(flags);
 	this_cpu = smp_processor_id();
 
+	_trace_kernel_vprintk(_RET_IP_, printk_buf, printed_len);
+
 	/*
 	 * Ouch, printk recursed into itself!
 	 */
@@ -668,6 +729,9 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 	printed_len += vscnprintf(printk_buf + printed_len,
 				  sizeof(printk_buf) - printed_len, fmt, args);
 
+#ifdef	CONFIG_DEBUG_LL
+	printascii(printk_buf);
+#endif
 
 	/*
 	 * Copy the output into log_buf.  If the caller didn't provide

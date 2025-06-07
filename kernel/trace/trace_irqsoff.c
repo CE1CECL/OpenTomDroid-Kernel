@@ -18,6 +18,7 @@
 
 #include "trace.h"
 
+struct trace_array			*irqtrack_trace __read_mostly;
 static struct trace_array		*irqsoff_trace __read_mostly;
 static int				tracer_enabled __read_mostly;
 
@@ -28,6 +29,7 @@ static DEFINE_SPINLOCK(max_trace_lock);
 enum {
 	TRACER_IRQS_OFF		= (1 << 1),
 	TRACER_PREEMPT_OFF	= (1 << 2),
+	TRACER_IRQ_TRACK	= (1 << 3),
 };
 
 static int trace_type __read_mostly;
@@ -46,7 +48,7 @@ preempt_trace(void)
 static inline int
 irq_trace(void)
 {
-	return ((trace_type & TRACER_IRQS_OFF) &&
+	return ((trace_type & TRACER_IRQS_OFF || trace_type & TRACER_IRQ_TRACK) &&
 		irqs_disabled());
 }
 #else
@@ -70,12 +72,17 @@ static __cacheline_aligned_in_smp	unsigned long max_sequence;
 static void
 irqsoff_tracer_call(unsigned long ip, unsigned long parent_ip)
 {
-	struct trace_array *tr = irqsoff_trace;
+	struct trace_array *tr;
 	struct trace_array_cpu *data;
 	unsigned long flags;
 	long disabled;
 	int cpu;
 
+	if (trace_type & TRACER_IRQ_TRACK) {
+		tr = irqtrack_trace;
+	} else { 
+		tr = irqsoff_trace;
+	}
 	/*
 	 * Does not matter if we preempt. We test the flags
 	 * afterward, to see if irqs are disabled or not.
@@ -176,20 +183,27 @@ out_unlock:
 out:
 	data->critical_sequence = max_sequence;
 	data->preempt_timestamp = ftrace_now(cpu);
-	tracing_reset(tr, cpu);
+	if (!(trace_type & TRACER_IRQ_TRACK))
+		tracing_reset(tr, cpu);
 	trace_function(tr, data, CALLER_ADDR0, parent_ip, flags, pc);
 }
 
+extern void die_nmi(char *, struct pt_regs *, int);
 static inline void
 start_critical_timing(unsigned long ip, unsigned long parent_ip)
 {
 	int cpu;
-	struct trace_array *tr = irqsoff_trace;
+	struct trace_array *tr;
 	struct trace_array_cpu *data;
 	unsigned long flags;
 
 	if (likely(!tracer_enabled))
 		return;
+
+	if (trace_type & TRACER_IRQ_TRACK)
+		tr = irqtrack_trace;
+	else 
+		tr = irqsoff_trace;
 
 	cpu = raw_smp_processor_id();
 
@@ -206,7 +220,8 @@ start_critical_timing(unsigned long ip, unsigned long parent_ip)
 	data->critical_sequence = max_sequence;
 	data->preempt_timestamp = ftrace_now(cpu);
 	data->critical_start = parent_ip ? : ip;
-	tracing_reset(tr, cpu);
+	if (!(trace_type & TRACER_IRQ_TRACK))
+		tracing_reset(tr, cpu);
 
 	local_save_flags(flags);
 
@@ -221,7 +236,7 @@ static inline void
 stop_critical_timing(unsigned long ip, unsigned long parent_ip)
 {
 	int cpu;
-	struct trace_array *tr = irqsoff_trace;
+	struct trace_array *tr;
 	struct trace_array_cpu *data;
 	unsigned long flags;
 
@@ -234,6 +249,11 @@ stop_critical_timing(unsigned long ip, unsigned long parent_ip)
 
 	if (!tracer_enabled)
 		return;
+
+	if (trace_type & TRACER_IRQ_TRACK)
+		tr = irqtrack_trace;
+	else 
+		tr = irqsoff_trace;
 
 	data = tr->data[cpu];
 
@@ -365,6 +385,19 @@ static void stop_irqsoff_tracer(struct trace_array *tr)
 	unregister_ftrace_function(&trace_ops);
 }
 
+static void __irqtrack_tracer_init(struct trace_array *tr)
+{
+	int cpu;
+	irqtrack_trace = tr;
+	/* make sure that the tracer is visible */
+	smp_wmb();
+
+	for_each_online_cpu(cpu)
+		tracing_reset(tr->data[cpu]);
+	if (tr->ctrl)
+		start_irqsoff_tracer(tr);
+}
+
 static void __irqsoff_tracer_init(struct trace_array *tr)
 {
 	irqsoff_trace = tr;
@@ -409,6 +442,22 @@ static void irqsoff_tracer_init(struct trace_array *tr)
 
 	__irqsoff_tracer_init(tr);
 }
+static void irqtrack_tracer_init(struct trace_array *tr)
+{
+	trace_type = TRACER_IRQ_TRACK;
+
+	__irqtrack_tracer_init(tr);
+}
+static struct tracer irqtrack_tracer __read_mostly =
+{
+	.name		= "irqtrack",
+	.init		= irqtrack_tracer_init,
+	.reset		= irqsoff_tracer_reset,
+	.open		= irqsoff_tracer_open,
+	.close		= irqsoff_tracer_close,
+	.ctrl_update	= irqsoff_tracer_ctrl_update,
+};
+# define register_irqtrack(trace) register_tracer(&trace)
 static struct tracer irqsoff_tracer __read_mostly =
 {
 	.name		= "irqsoff",
@@ -425,6 +474,7 @@ static struct tracer irqsoff_tracer __read_mostly =
 # define register_irqsoff(trace) register_tracer(&trace)
 #else
 # define register_irqsoff(trace) do { } while (0)
+# define register_irqtrack(trace) do { } while (0)
 #endif
 
 #ifdef CONFIG_PREEMPT_TRACER
@@ -484,6 +534,7 @@ static struct tracer preemptirqsoff_tracer __read_mostly =
 
 __init static int init_irqsoff_tracer(void)
 {
+	register_irqsoff(irqtrack_tracer);
 	register_irqsoff(irqsoff_tracer);
 	register_preemptoff(preemptoff_tracer);
 	register_preemptirqsoff(preemptirqsoff_tracer);

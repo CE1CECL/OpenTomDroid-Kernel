@@ -72,6 +72,7 @@ int cap_ptrace_may_access(struct task_struct *child, unsigned int mode)
 		return 0;
 	return -EPERM;
 }
+EXPORT_SYMBOL(cap_ptrace_may_access);
 
 int cap_ptrace_traceme(struct task_struct *parent)
 {

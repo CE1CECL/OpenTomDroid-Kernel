@@ -58,6 +58,15 @@ config SOFT_WATCHDOG
 # ALPHA Architecture
 
 # ARM Architecture
+config BCM476X_WATCHDOG
+	tristate "BCM476X watchdog"
+	depends on WATCHDOG && ( PLAT_BCM476X )
+	help
+	  Watchdog timer embedded into BCM476X chips. This will
+	  reboot your system when timeout is reached.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called bcm476x_wdt.
 
 config AT91RM9200_WATCHDOG
 	tristate "AT91RM9200 watchdog"
@@ -132,10 +141,10 @@ config KS8695_WATCHDOG
 	  system when the timeout is reached.
 
 config S3C2410_WATCHDOG
-	tristate "S3C2410 Watchdog"
-	depends on ARCH_S3C2410
+	tristate "Samsung SoC Watchdog"
+	depends on ARCH_S3C2410 || ARCH_S3C64XX || ARCH_S5PC1XX || ARCH_S5P64XX
 	help
-	  Watchdog timer block in the Samsung S3C2410 chips. This will
+	  Watchdog timer block in the Samsung chips. This will
 	  reboot the system when the timer expires with the watchdog
 	  enabled.
 
@@ -399,7 +408,7 @@ config ITCO_WDT
 	---help---
 	  Hardware driver for the intel TCO timer based watchdog devices.
 	  These drivers are included in the Intel 82801 I/O Controller
-	  Hub family (from ICH0 up to ICH10) and in the Intel 63xxESB
+	  Hub family (from ICH0 up to ICH8) and in the Intel 6300ESB
 	  controller hub.
 
 	  The TCO (Total Cost of Ownership) timer is a watchdog timer

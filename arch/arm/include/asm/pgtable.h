@@ -172,6 +172,10 @@ extern void __pgd_error(const char *file, int line, unsigned long val);
 #define L_PTE_EXEC		(1 << 9)
 #define L_PTE_SHARED		(1 << 10)	/* shared(v6), coherent(xsc3) */
 
+#ifdef CONFIG_KMEMCHECK
+#define L_PTE_HIDDEN		(1 << 11)
+#endif
+
 /*
  * These are the memory types, defined to be compatible with
  * pre-ARMv6 CPUs cacheable and bufferable bits:   XXCB
@@ -283,6 +287,11 @@ extern struct page *empty_zero_page;
 #define pte_write(pte)		(pte_val(pte) & L_PTE_WRITE)
 #define pte_dirty(pte)		(pte_val(pte) & L_PTE_DIRTY)
 #define pte_young(pte)		(pte_val(pte) & L_PTE_YOUNG)
+
+#ifdef CONFIG_KMEMCHECK
+#define pte_hidden(pte)		(pte_val(pte) & L_PTE_HIDDEN)
+#endif
+
 #define pte_special(pte)	(0)
 
 /*
@@ -317,6 +326,7 @@ static inline pte_t pte_mkspecial(pte_t pte) { return pte; }
 #define pmd_none(pmd)		(!pmd_val(pmd))
 #define pmd_present(pmd)	(pmd_val(pmd))
 #define pmd_bad(pmd)		(pmd_val(pmd) & 2)
+#define pmd_table(pmd)		((pmd_val(pmd) & PMD_TYPE_MASK) == PMD_TYPE_TABLE)
 
 #define copy_pmd(pmdpd,pmdps)		\
 	do {				\
@@ -397,6 +407,42 @@ extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
 /* Needs to be defined here and not in linux/mm.h, as it is arch dependent */
 /* FIXME: this is not correct */
 #define kern_addr_valid(addr)	(1)
+#ifdef CONFIG_KMEMCHECK
+#include <linux/sched.h>
+static inline pte_t *lookup_address(unsigned long addr, int *pmdtype)
+{
+	pgd_t *pgd;
+	pmd_t *pmd;
+	pte_t *pte = NULL;
+	pgd = pgd_offset_k(addr);
+	do {
+
+		if (pgd_none(*pgd))
+			break;
+
+		if (pgd_bad(*pgd)) {
+			printk("(bad)");
+			break;
+		}
+
+		pmd = pmd_offset(pgd, addr);
+
+		if (pmd_none(*pmd))
+			break;
+		if (pmd_bad(*pmd)) {
+			*pmdtype = 1;
+			break;
+		}
+
+#ifndef CONFIG_HIGHMEM
+		/* We must not map this if we have highmem enabled */
+		pte = pte_offset_map(pmd, addr);
+		pte_unmap(pte);
+#endif
+	} while (0);
+	return pte;
+}
+#endif
 
 #include <asm-generic/pgtable.h>
 

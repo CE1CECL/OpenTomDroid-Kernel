@@ -724,6 +724,11 @@ static inline void security_free_mnt_opts(struct security_mnt_opts *opts)
  *	Set the security attributes in @p->security for a kernel thread that
  *	is being reparented to the init task.
  *	@p contains the task_struct for the kernel thread.
+ * @task_lookup:
+ *	Check permission to see the /proc/<pid> entry for process @p.
+ *	@p contains the task_struct for task <pid> which is being looked
+ *	up under /proc
+ *	return 0 if permission is granted.
  * @task_to_inode:
  *	Set the security attributes for an inode based on an associated task's
  *	security attributes, e.g. for /proc/pid inodes.
@@ -1435,6 +1440,7 @@ struct security_operations {
 			   unsigned long arg3, unsigned long arg4,
 			   unsigned long arg5, long *rc_p);
 	void (*task_reparent_to_init) (struct task_struct *p);
+	int (*task_lookup)(struct task_struct *p);
 	void (*task_to_inode) (struct task_struct *p, struct inode *inode);
 
 	int (*ipc_permission) (struct kern_ipc_perm *ipcp, short flag);
@@ -1722,6 +1728,7 @@ int security_netlink_recv(struct sk_buff *skb, int cap);
 int security_secid_to_secctx(u32 secid, char **secdata, u32 *seclen);
 int security_secctx_to_secid(const char *secdata, u32 seclen, u32 *secid);
 void security_release_secctx(char *secdata, u32 seclen);
+int security_task_lookup(struct task_struct *p);
 
 #else /* CONFIG_SECURITY */
 struct security_mnt_opts {
@@ -2299,6 +2306,11 @@ static inline int security_task_prctl(int option, unsigned long arg2,
 static inline void security_task_reparent_to_init(struct task_struct *p)
 {
 	cap_task_reparent_to_init(p);
+}
+
+static inline int security_task_lookup(struct task_struct *p)
+{
+	return 0;
 }
 
 static inline void security_task_to_inode(struct task_struct *p, struct inode *inode)

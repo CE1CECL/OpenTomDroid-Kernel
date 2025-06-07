@@ -136,4 +136,22 @@ config USB_DABUSB
 	  module will be called dabusb.
 endif # DAB
 
+
+if CPU_S5P6440
+config VIDEO_SAMSUNG_MEMSIZE_GVG_EDGE
+    int
+    depends on VIDEO_GVG
+    default VIDEO_GVG_TESSELLATE_EDGE_MEM_SIZE
+
+config VIDEO_SAMSUNG_MEMSIZE_GVG_VERTEX
+    int
+    depends on VIDEO_GVG
+    default VIDEO_GVG_TESSELLATE_VERTEX_MEM_SIZE
+
+endif
+
+if CPU_S5P6440
+source "drivers/media/video/samsung/gvg/Kconfig"
+endif
+
 endmenu

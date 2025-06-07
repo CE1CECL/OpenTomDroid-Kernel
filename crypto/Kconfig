@@ -140,7 +140,7 @@ config CRYPTO_CCM
 	select CRYPTO_AEAD
 	help
 	  Support for Counter with CBC MAC. Required for IPsec.
-
+	  
 config CRYPTO_GCM
 	tristate "GCM/GMAC support"
 	select CRYPTO_CTR
@@ -158,7 +158,7 @@ config CRYPTO_SEQIV
 	help
 	  This IV generator generates an IV based on a sequence number by
 	  xoring it with a salt.  This algorithm is mainly useful for CTR
-
+	  
 comment "Block modes"
 
 config CRYPTO_CBC
@@ -325,7 +325,7 @@ config CRYPTO_RMD160
 
 	  Developed by Hans Dobbertin, Antoon Bosselaers and Bart Preneel.
 	  See <http://home.esat.kuleuven.be/~bosselae/ripemd160.html>
-
+	  
 config CRYPTO_RMD256
 	tristate "RIPEMD-256 digest algorithm"
 	select CRYPTO_ALGAPI
@@ -334,7 +334,7 @@ config CRYPTO_RMD256
 	  256 bit hash. It is intended for applications that require
 	  longer hash-results, without needing a larger security level
 	  (than RIPEMD-128).
-
+	  
 	  Developed by Hans Dobbertin, Antoon Bosselaers and Bart Preneel.
 	  See <http://home.esat.kuleuven.be/~bosselae/ripemd160.html>
 
@@ -346,10 +346,10 @@ config CRYPTO_RMD320
 	  320 bit hash. It is intended for applications that require
 	  longer hash-results, without needing a larger security level
 	  (than RIPEMD-160).
-
+	  
 	  Developed by Hans Dobbertin, Antoon Bosselaers and Bart Preneel.
 	  See <http://home.esat.kuleuven.be/~bosselae/ripemd160.html>
-
+	  
 config CRYPTO_SHA1
 	tristate "SHA1 digest algorithm"
 	select CRYPTO_ALGAPI
@@ -411,19 +411,19 @@ config CRYPTO_AES
 	tristate "AES cipher algorithms"
 	select CRYPTO_ALGAPI
 	help
-	  AES cipher algorithms (FIPS-197). AES uses the Rijndael
+	  AES cipher algorithms (FIPS-197). AES uses the Rijndael 
 	  algorithm.
 
 	  Rijndael appears to be consistently a very good performer in
-	  both hardware and software across a wide range of computing
-	  environments regardless of its use in feedback or non-feedback
-	  modes. Its key setup time is excellent, and its key agility is
-	  good. Rijndael's very low memory requirements make it very well
-	  suited for restricted-space environments, in which it also
-	  demonstrates excellent performance. Rijndael's operations are
-	  among the easiest to defend against power and timing attacks.
+	  both hardware and software across a wide range of computing 
+	  environments regardless of its use in feedback or non-feedback 
+	  modes. Its key setup time is excellent, and its key agility is 
+	  good. Rijndael's very low memory requirements make it very well 
+	  suited for restricted-space environments, in which it also 
+	  demonstrates excellent performance. Rijndael's operations are 
+	  among the easiest to defend against power and timing attacks.	
 
-	  The AES specifies three key sizes: 128, 192 and 256 bits
+	  The AES specifies three key sizes: 128, 192 and 256 bits	  
 
 	  See <http://csrc.nist.gov/CryptoToolkit/aes/> for more information.
 
@@ -433,19 +433,19 @@ config CRYPTO_AES_586
 	select CRYPTO_ALGAPI
 	select CRYPTO_AES
 	help
-	  AES cipher algorithms (FIPS-197). AES uses the Rijndael
+	  AES cipher algorithms (FIPS-197). AES uses the Rijndael 
 	  algorithm.
 
 	  Rijndael appears to be consistently a very good performer in
-	  both hardware and software across a wide range of computing
-	  environments regardless of its use in feedback or non-feedback
-	  modes. Its key setup time is excellent, and its key agility is
-	  good. Rijndael's very low memory requirements make it very well
-	  suited for restricted-space environments, in which it also
-	  demonstrates excellent performance. Rijndael's operations are
-	  among the easiest to defend against power and timing attacks.
+	  both hardware and software across a wide range of computing 
+	  environments regardless of its use in feedback or non-feedback 
+	  modes. Its key setup time is excellent, and its key agility is 
+	  good. Rijndael's very low memory requirements make it very well 
+	  suited for restricted-space environments, in which it also 
+	  demonstrates excellent performance. Rijndael's operations are 
+	  among the easiest to defend against power and timing attacks.	
 
-	  The AES specifies three key sizes: 128, 192 and 256 bits
+	  The AES specifies three key sizes: 128, 192 and 256 bits	  
 
 	  See <http://csrc.nist.gov/encryption/aes/> for more information.
 
@@ -455,19 +455,19 @@ config CRYPTO_AES_X86_64
 	select CRYPTO_ALGAPI
 	select CRYPTO_AES
 	help
-	  AES cipher algorithms (FIPS-197). AES uses the Rijndael
+	  AES cipher algorithms (FIPS-197). AES uses the Rijndael 
 	  algorithm.
 
 	  Rijndael appears to be consistently a very good performer in
-	  both hardware and software across a wide range of computing
-	  environments regardless of its use in feedback or non-feedback
-	  modes. Its key setup time is excellent, and its key agility is
-	  good. Rijndael's very low memory requirements make it very well
-	  suited for restricted-space environments, in which it also
-	  demonstrates excellent performance. Rijndael's operations are
-	  among the easiest to defend against power and timing attacks.
+	  both hardware and software across a wide range of computing 
+	  environments regardless of its use in feedback or non-feedback 
+	  modes. Its key setup time is excellent, and its key agility is 
+	  good. Rijndael's very low memory requirements make it very well 
+	  suited for restricted-space environments, in which it also 
+	  demonstrates excellent performance. Rijndael's operations are 
+	  among the easiest to defend against power and timing attacks.	
 
-	  The AES specifies three key sizes: 128, 192 and 256 bits
+	  The AES specifies three key sizes: 128, 192 and 256 bits	  
 
 	  See <http://csrc.nist.gov/encryption/aes/> for more information.
 
@@ -601,7 +601,7 @@ config CRYPTO_SALSA20_X86_64
 
 	  Salsa20 is a stream cipher submitted to eSTREAM, the ECRYPT
 	  Stream Cipher Project. See <http://www.ecrypt.eu.org/stream/>
-
+	  
 	  The Salsa20 stream cipher algorithm is designed by Daniel J.
 	  Bernstein <djb@cr.yp.to>. See <http://cr.yp.to/snuffle.html>
 
@@ -645,7 +645,7 @@ config CRYPTO_TEA
 	  Xtendend Tiny Encryption Algorithm is a modification to
 	  the TEA algorithm to address a potential key weakness
 	  in the TEA algorithm.
-
+	  
 	  Xtendend Encryption Tiny Algorithm is a mis-implementation
 	  of the XTEA algorithm for compatibility purposes.
 
@@ -725,6 +725,17 @@ config CRYPTO_LZO
 
 comment "Random Number Generation"
 
+config CRYPTO_MPILIB
+	bool "Multiprecision maths library (EXPERIMENTAL)"
+	depends on CRYPTO
+	help
+	  Multiprecision maths library from GnuPG
+
+config CRYPTO_DSASIG
+	bool "Support for checking DSA signatures in the kernel"
+	select CRYPTO_MPILIB
+	select CRYPTO_SHA1
+
 config CRYPTO_ANSI_CPRNG
 	tristate "Pseudo Random Number Generation for Cryptographic modules"
 	select CRYPTO_AES
@@ -738,3 +749,6 @@ config CRYPTO_ANSI_CPRNG
 source "drivers/crypto/Kconfig"
 
 endif	# if CRYPTO
+
+source "crypto/ocf/Kconfig"
+

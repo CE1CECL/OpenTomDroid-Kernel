@@ -764,6 +764,11 @@ struct net_device
 	/* for setting kernel sock attribute on TCP connection setup */
 #define GSO_MAX_SIZE		65536
 	unsigned int		gso_max_size;
+
+#ifdef CONFIG_INTERPEAK
+    /* for mapping a net device to a certain VR */
+    __u16 vr;
+#endif
 };
 #define to_net_dev(d) container_of(d, struct net_device, dev)
 

@@ -60,6 +60,8 @@ enum ecm_notify_state {
 struct f_ecm {
 	struct gether			port;
 	u8				ctrl_id, data_id;
+	u8				gether_connected;
+	u8				altset_data;
 
 	char				ethaddr[14];
 
@@ -432,6 +434,8 @@ invalid:
 	}
 
 	/* respond with data transfer or status phase? */
+	/* should not be needed here, but leave in code to make sure ep0 FIFO gets two ZLP packets */
+	/* might be needed to ensure some HW/SW interaction reliability */
 	if (value >= 0) {
 		DBG(cdev, "ecm req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
@@ -476,10 +480,14 @@ static int ecm_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	} else if (intf == ecm->data_id) {
 		if (alt > 1)
 			goto fail;
+		ecm->altset_data = alt;
 
 		if (ecm->port.in_ep->driver_data) {
 			DBG(cdev, "reset ecm\n");
-			gether_disconnect(&ecm->port);
+			if (ecm->gether_connected) {
+				ecm->gether_connected = 0;
+				gether_disconnect(&ecm->port);
+			}
 		}
 
 		if (!ecm->port.in) {
@@ -506,9 +514,12 @@ static int ecm_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 				);
 			ecm->port.cdc_filter = DEFAULT_FILTER;
 			DBG(cdev, "activate ecm\n");
-			net = gether_connect(&ecm->port);
-			if (IS_ERR(net))
-				return PTR_ERR(net);
+			if (ecm->gether_connected == 0) {
+				net = gether_connect(&ecm->port);
+				if (IS_ERR(net))
+					return PTR_ERR(net);
+				ecm->gether_connected = 1;
+			}
 		}
 
 		/* NOTE this can be a minor disagreement with the ECM spec,
@@ -535,7 +546,9 @@ static int ecm_get_alt(struct usb_function *f, unsigned intf)
 
 	if (intf == ecm->ctrl_id)
 		return 0;
-	return ecm->port.in_ep->driver_data ? 1 : 0;
+	if (intf == ecm->data_id)
+		return ecm->altset_data;
+	return 0;
 }
 
 static void ecm_disable(struct usb_function *f)
@@ -545,8 +558,12 @@ static void ecm_disable(struct usb_function *f)
 
 	DBG(cdev, "ecm deactivated\n");
 
-	if (ecm->port.in_ep->driver_data)
-		gether_disconnect(&ecm->port);
+	if (ecm->port.in_ep->driver_data) {
+		if (ecm->gether_connected) {
+			ecm->gether_connected = 0;
+			gether_disconnect(&ecm->port);
+		}
+	}
 
 	if (ecm->notify->driver_data) {
 		usb_ep_disable(ecm->notify);
@@ -620,6 +637,7 @@ ecm_bind(struct usb_configuration *c, struct usb_function *f)
 	if (status < 0)
 		goto fail;
 	ecm->data_id = status;
+	ecm->gether_connected = 0;
 
 	ecm_data_nop_intf.bInterfaceNumber = status;
 	ecm_data_intf.bInterfaceNumber = status;

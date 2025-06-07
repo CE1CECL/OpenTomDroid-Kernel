@@ -76,6 +76,15 @@ struct usb_cdc_acm_descriptor {
 	__u8	bmCapabilities;
 } __attribute__ ((packed));
 
+struct usb_cdc_acm_descriptor_rndis {
+	__u8	bLength;
+	__u8	bDescriptorType;
+	__u8	bDescriptorSubType;
+
+	__u8	bmCapabilities;
+	__u8	bmExtraByte;
+} __attribute__ ((packed));
+
 /* capabilities from 5.2.3.3 */
 
 #define USB_CDC_COMM_FEATURE	0x01

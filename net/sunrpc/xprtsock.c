@@ -1113,7 +1113,17 @@ static void xs_tcp_data_ready(struct sock *sk, int bytes)
 	rd_desc.arg.data = xprt;
 	do {
 		rd_desc.count = 65536;
+#ifdef CONFIG_INTERPEAK
+		if (sk && sk->sk_socket->ops->skb_tcp_data_recv
+		    && ((sk->sk_family == AF_INET) || (sk->sk_family == AF_INET6)))
+		  read = sk->sk_socket->ops->skb_tcp_data_recv(sk,
+							       &rd_desc,
+							       xs_tcp_data_recv);
+		else
+		  read = 0;
+#else
 		read = tcp_read_sock(sk, &rd_desc, xs_tcp_data_recv);
+#endif
 	} while (read > 0);
 out:
 	read_unlock(&sk->sk_callback_lock);
@@ -1638,10 +1648,12 @@ static int xs_tcp_finish_connecting(struct rpc_xprt *xprt, struct socket *sock)
 
 		/* socket options */
 		sk->sk_userlocks |= SOCK_BINDPORT_LOCK;
+#ifndef CONFIG_INTERPEAK
 		sock_reset_flag(sk, SOCK_LINGER);
 		tcp_sk(sk)->linger2 = 0;
 		tcp_sk(sk)->nonagle |= TCP_NAGLE_OFF;
 
+#endif /* CONFIG_INTERPEAK */
 		xprt_clear_connected(xprt);
 
 		/* Reset to new socket */
@@ -1649,6 +1661,23 @@ static int xs_tcp_finish_connecting(struct rpc_xprt *xprt, struct socket *sock)
 		transport->inet = sk;
 
 		write_unlock_bh(&sk->sk_callback_lock);
+
+#ifdef CONFIG_INTERPEAK
+		{
+			struct linger l;
+
+			l.l_onoff  = 1;
+			l.l_linger = 0;
+
+			/* We need to set linger via a setsockopt */
+			(void)sock->ops->setsockopt(sock,
+						    SOL_SOCKET,
+						    SO_LINGER,
+						    (char*)&l,
+						    sizeof(l));
+		}
+#endif /* CONFIG_INTERPEAK */
+
 	}
 
 	/* Tell the socket layer to start connecting... */
@@ -1673,6 +1702,21 @@ static void xs_tcp_connect_worker4(struct work_struct *work)
 
 	if (xprt->shutdown || !xprt_bound(xprt))
 		goto out;
+
+#ifdef CONFIG_INTERPEAK
+	if (sock) {
+		/*
+		 * IPNET does not allow reuse of a previously connected +
+		 * disconnected socket, since this is a violation of the
+		 * tcp socket standard.
+		 * We need to close this socket and create a new one.
+		 */
+		sock_release(sock);
+
+		sock = NULL;
+		transport->inet = NULL;
+	}
+#endif /* CONFIG_INTERPEAK */
 
 	if (!sock) {
 		/* start from scratch */
@@ -1733,6 +1777,21 @@ static void xs_tcp_connect_worker6(struct work_struct *work)
 
 	if (xprt->shutdown || !xprt_bound(xprt))
 		goto out;
+
+#ifdef CONFIG_INTERPEAK
+	if (sock) {
+		/*
+		 * IPNET does not allow reuse of a previously connected +
+		 * disconnected socket, since this is a violation of the
+		 * tcp socket standard.
+		 * We need to close this socket and create a new one.
+		 */
+		sock_release(sock);
+
+		sock = NULL;
+		transport->inet = NULL;
+	}
+#endif /* CONFIG_INTERPEAK */
 
 	if (!sock) {
 		/* start from scratch */

@@ -24,6 +24,7 @@
 /* leave room for NETLINK_DM (DM Events) */
 #define NETLINK_SCSITRANSPORT	18	/* SCSI Transports */
 #define NETLINK_ECRYPTFS	19
+#define NETLINK_LTT		31 	/* Linux Trace Toolkit FIXME */
 
 #define MAX_LINKS 32		
 
@@ -168,6 +169,9 @@ struct netlink_skb_parms
 	__u32			loginuid;	/* Login (audit) uid */
 	__u32			sessionid;	/* Session id (audit) */
 	__u32			sid;		/* SELinux security id */
+#ifdef CONFIG_INTERPEAK
+	__u32                   vr;
+#endif
 };
 
 #define NETLINK_CB(skb)		(*(struct netlink_skb_parms*)&((skb)->cb))

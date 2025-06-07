@@ -2,6 +2,11 @@
 # linux/drivers/maps/Makefile
 #
 
+ifeq ($(CONFIG_MTD_BCM282X_NOR),y)
+TAHOE_DIR=../../../tahoe
+CFLAGS += -I$(TAHOE_DIR)/include
+endif
+
 ifeq ($(CONFIG_MTD_COMPLEX_MAPPINGS),y)
 obj-$(CONFIG_MTD)		+= map_funcs.o
 endif
@@ -52,6 +57,12 @@ obj-$(CONFIG_MTD_NETtel)	+= nettel.o
 obj-$(CONFIG_MTD_SCB2_FLASH)	+= scb2_flash.o
 obj-$(CONFIG_MTD_H720X)		+= h720x-flash.o
 obj-$(CONFIG_MTD_SBC8240)	+= sbc8240.o
+obj-$(CONFIG_MTD_BCM282X_RAM)   += bcm282x-mtd-ram.o
+obj-$(CONFIG_MTD_BCM282X_NOR)   += bcm282x-mtd-nor.o
+obj-$(CONFIG_MTD_BCM282X_SFLASH)+= bcm282x-mtd-sflash.o
+obj-$(CONFIG_MTD_BCM476X_RAM)   += bcm476x-mtd-ram.o
+obj-$(CONFIG_MTD_BCM476X_NOR)   += bcm476x-mtd-nor.o
+obj-$(CONFIG_MTD_BCM476X_SFLASH)+= bcm476x-mtd-sflash.o
 obj-$(CONFIG_MTD_IXP4XX)	+= ixp4xx.o
 obj-$(CONFIG_MTD_IXP2000)	+= ixp2000.o
 obj-$(CONFIG_MTD_WRSBC8260)	+= wr_sbc82xx_flash.o

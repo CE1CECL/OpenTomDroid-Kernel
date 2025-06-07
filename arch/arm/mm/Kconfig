@@ -18,7 +18,7 @@ config CPU_ARM610
 	select CPU_CP15_MMU
 	select CPU_COPY_V3 if MMU
 	select CPU_TLB_V3 if MMU
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	help
 	  The ARM610 is the successor to the ARM3 processor
 	  and was produced by VLSI Technology Inc.
@@ -32,7 +32,7 @@ config CPU_ARM7TDMI
 	depends on !MMU
 	select CPU_32v4T
 	select CPU_ABRT_LV4T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_V4
 	help
 	  A 32-bit RISC microprocessor based on the ARM7 processor core
@@ -51,7 +51,7 @@ config CPU_ARM710
 	select CPU_CP15_MMU
 	select CPU_COPY_V3 if MMU
 	select CPU_TLB_V3 if MMU
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	help
 	  A 32-bit RISC microprocessor based on the ARM7 processor core
 	  designed by Advanced RISC Machines Ltd. The ARM710 is the
@@ -67,7 +67,7 @@ config CPU_ARM720T
 	default y if ARCH_CLPS711X || ARCH_L7200 || ARCH_CDB89712 || ARCH_H720X
 	select CPU_32v4T
 	select CPU_ABRT_LV4T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_V4
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
@@ -86,7 +86,7 @@ config CPU_ARM740T
 	depends on !MMU
 	select CPU_32v4T
 	select CPU_ABRT_LV4T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_V3	# although the core is v4t
 	select CPU_CP15_MPU
 	help
@@ -103,7 +103,7 @@ config CPU_ARM9TDMI
 	depends on !MMU
 	select CPU_32v4T
 	select CPU_ABRT_NOMMU
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_V4
 	help
 	  A 32-bit RISC microprocessor based on the ARM9 processor core
@@ -119,7 +119,7 @@ config CPU_ARM920T
 	default y if CPU_S3C2410 || CPU_S3C2440 || CPU_S3C2442 || ARCH_AT91RM9200
 	select CPU_32v4T
 	select CPU_ABRT_EV4T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_V4WT
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
@@ -142,7 +142,7 @@ config CPU_ARM922T
 	default y if ARCH_LH7A40X || ARCH_KS8695
 	select CPU_32v4T
 	select CPU_ABRT_EV4T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_V4WT
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
@@ -163,7 +163,7 @@ config CPU_ARM925T
  	default y if ARCH_OMAP15XX
 	select CPU_32v4T
 	select CPU_ABRT_EV4T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_V4WT
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
@@ -183,21 +183,21 @@ config CPU_ARM926T
 	depends on ARCH_INTEGRATOR || ARCH_VERSATILE_PB || \
 		MACH_VERSATILE_AB || ARCH_OMAP730 || \
 		ARCH_OMAP16XX || MACH_REALVIEW_EB || \
-		ARCH_PNX4008 || ARCH_NETX || CPU_S3C2412 || \
+		ARCH_PNX4008 || ARCH_NETX || CPU_S3C2412 || ARCH_S3C24A0 || \
 		ARCH_AT91SAM9260 || ARCH_AT91SAM9261 || \
 		ARCH_AT91SAM9263 || ARCH_AT91SAM9RL || \
 		ARCH_AT91SAM9G20 || ARCH_AT91CAP9 || \
 		ARCH_NS9XXX || ARCH_DAVINCI || ARCH_MX2
 	default y if ARCH_VERSATILE_PB || MACH_VERSATILE_AB || \
 		ARCH_OMAP730 || ARCH_OMAP16XX || \
-		ARCH_PNX4008 || ARCH_NETX || CPU_S3C2412 || \
+		ARCH_PNX4008 || ARCH_NETX || CPU_S3C2412 || ARCH_S3C24A0 || \
 		ARCH_AT91SAM9260 || ARCH_AT91SAM9261 || \
 		ARCH_AT91SAM9263 || ARCH_AT91SAM9RL || \
 		ARCH_AT91SAM9G20 || ARCH_AT91CAP9 || \
 		ARCH_NS9XXX || ARCH_DAVINCI || ARCH_MX2
 	select CPU_32v5
 	select CPU_ABRT_EV5TJ
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
 	select CPU_COPY_V4WB if MMU
@@ -216,7 +216,7 @@ config CPU_ARM940T
 	depends on !MMU
 	select CPU_32v4T
 	select CPU_ABRT_NOMMU
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MPU
 	help
@@ -234,7 +234,7 @@ config CPU_ARM946E
 	depends on !MMU
 	select CPU_32v5
 	select CPU_ABRT_NOMMU
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MPU
 	help
@@ -251,7 +251,7 @@ config CPU_ARM1020
 	depends on ARCH_INTEGRATOR
 	select CPU_32v5
 	select CPU_ABRT_EV4T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_V4WT
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
@@ -270,7 +270,7 @@ config CPU_ARM1020E
 	depends on ARCH_INTEGRATOR
 	select CPU_32v5
 	select CPU_ABRT_EV4T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_V4WT
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
@@ -284,7 +284,7 @@ config CPU_ARM1022
 	depends on ARCH_INTEGRATOR
 	select CPU_32v5
 	select CPU_ABRT_EV4T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
 	select CPU_COPY_V4WB if MMU # can probably do better
@@ -303,7 +303,7 @@ config CPU_ARM1026
 	depends on ARCH_INTEGRATOR
 	select CPU_32v5
 	select CPU_ABRT_EV5T # But need Jazelle, but EV5TJ ignores bit 10
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
 	select CPU_COPY_V4WB if MMU # can probably do better
@@ -322,7 +322,7 @@ config CPU_SA110
 	select CPU_32v3 if ARCH_RPC
 	select CPU_32v4 if !ARCH_RPC
 	select CPU_ABRT_EV4
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_V4WB
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
@@ -344,7 +344,7 @@ config CPU_SA1100
 	default y
 	select CPU_32v4
 	select CPU_ABRT_EV4
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_V4WB
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
@@ -357,7 +357,7 @@ config CPU_XSCALE
 	default y
 	select CPU_32v5
 	select CPU_ABRT_EV5T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
 	select CPU_TLB_V4WBI if MMU
@@ -369,7 +369,7 @@ config CPU_XSC3
 	default y
 	select CPU_32v5
 	select CPU_ABRT_EV5T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
 	select CPU_TLB_V4WBI if MMU
@@ -382,7 +382,7 @@ config CPU_FEROCEON
 	default y
 	select CPU_32v5
 	select CPU_ABRT_EV5T
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_LEGACY
 	select CPU_CACHE_VIVT
 	select CPU_CP15_MMU
 	select CPU_COPY_FEROCEON if MMU
@@ -400,12 +400,14 @@ config CPU_FEROCEON_OLD_ID
 # ARMv6
 config CPU_V6
 	bool "Support ARM V6 processor"
-	depends on ARCH_INTEGRATOR || MACH_REALVIEW_EB || ARCH_OMAP2 || ARCH_MX3 || ARCH_MSM || MACH_REALVIEW_PB11MP || MACH_REALVIEW_PB1176
+	depends on ARCH_INTEGRATOR || MACH_REALVIEW_EB || ARCH_OMAP2 || ARCH_MX3 || ARCH_MSM || MACH_REALVIEW_PB11MP || MACH_REALVIEW_PB1176 || PLAT_BCM476X || ARCH_S3C64XX || ARCH_S5P64XX
 	default y if ARCH_MX3
+	default y if PLAT_BCM476X
 	default y if ARCH_MSM
+	default y if (ARCH_S3C64XX || ARCH_S5P64XX)
 	select CPU_32v6
 	select CPU_ABRT_EV6
-	select CPU_PABRT_NOIFAR
+	select CPU_PABRT_V6
 	select CPU_CACHE_V6
 	select CPU_CACHE_VIPT
 	select CPU_CP15_MMU
@@ -428,11 +430,12 @@ config CPU_32v6K
 # ARMv7
 config CPU_V7
 	bool "Support ARM V7 processor"
-	depends on ARCH_INTEGRATOR || MACH_REALVIEW_EB || ARCH_OMAP3
+	depends on ARCH_INTEGRATOR || MACH_REALVIEW_EB || ARCH_OMAP3 || ARCH_S5PC1XX
+	default y if ARCH_S5PC1XX
 	select CPU_32v6K
 	select CPU_32v7
 	select CPU_ABRT_EV7
-	select CPU_PABRT_IFAR
+	select CPU_PABRT_V7
 	select CPU_CACHE_V7
 	select CPU_CACHE_VIPT
 	select CPU_CP15_MMU
@@ -494,10 +497,13 @@ config CPU_ABRT_EV6
 config CPU_ABRT_EV7
 	bool
 
-config CPU_PABRT_IFAR
+config CPU_PABRT_LEGACY
 	bool
 
-config CPU_PABRT_NOIFAR
+config CPU_PABRT_V6
+	bool
+
+config CPU_PABRT_V7
 	bool
 
 # The cache model
@@ -524,6 +530,11 @@ config CPU_CACHE_VIVT
 
 config CPU_CACHE_VIPT
 	bool
+
+config CPU_NO_CACHE_BCAST
+	bool
+	depends on SMP
+	default y if CPU_V6
 
 if MMU
 # The copy-page model
@@ -638,6 +649,13 @@ config CPU_BIG_ENDIAN
 	  port must properly enable any big-endian related features
 	  of your chipset/board/processor.
 
+config CPU_ENDIAN_BE8
+	bool
+	depends on CPU_V6 || CPU_V7
+	default y if CPU_BIG_ENDIAN
+	help
+	  Support for the BE-8 (big-endian) mode on ARMv6 and ARMv7 CPUs.
+
 config CPU_HIGH_VECTOR
 	depends on !MMU && CPU_CP15 && !CPU_ARM740T
 	bool "Select the High exception vector"
@@ -745,7 +763,7 @@ config CACHE_FEROCEON_L2_WRITETHROUGH
 
 config CACHE_L2X0
 	bool "Enable the L2x0 outer cache controller"
-	depends on REALVIEW_EB_ARM11MP || MACH_REALVIEW_PB11MP || MACH_REALVIEW_PB1176
+	depends on REALVIEW_EB_ARM11MP || MACH_REALVIEW_PB11MP || MACH_REALVIEW_PB1176 || REALVIEW_EB_A9MP || MACH_REALVIEW_PBX
 	default y
 	select OUTER_CACHE
 	help

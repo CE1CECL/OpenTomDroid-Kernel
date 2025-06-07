@@ -52,9 +52,13 @@ source "drivers/i2c/Kconfig"
 
 source "drivers/spi/Kconfig"
 
+source "drivers/pps/Kconfig"
+
 source "drivers/gpio/Kconfig"
 
 source "drivers/w1/Kconfig"
+
+source "drivers/pmu/Kconfig"
 
 source "drivers/power/Kconfig"
 
@@ -107,4 +111,6 @@ source "drivers/uio/Kconfig"
 source "drivers/xen/Kconfig"
 
 source "drivers/staging/Kconfig"
+
+source "drivers/tomtom/Kconfig"
 endmenu

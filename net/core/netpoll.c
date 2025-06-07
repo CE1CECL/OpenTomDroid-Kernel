@@ -539,7 +539,8 @@ int __netpoll_rx(struct sk_buff *skb)
 
 	np->rx_hook(np, ntohs(uh->source),
 		    (char *)(uh+1),
-		    ulen - sizeof(struct udphdr));
+		    ulen - sizeof(struct udphdr),
+		    skb);
 
 	kfree_skb(skb);
 	return 1;
@@ -746,6 +747,33 @@ int netpoll_setup(struct netpoll *np)
 	}
 
 	if (!np->local_ip) {
+#ifdef CONFIG_INTERPEAK
+		struct ifreq       ifr;
+		struct sockaddr_in *sin;
+		struct socket      *sock;
+
+		if (sock_create_kern(AF_INET, SOCK_DGRAM,
+				     IPPROTO_UDP, &sock) < 0) {
+			printk(KERN_ERR "%s: Failed to create kern socket\n",
+			       np->name);
+			goto release;
+		}
+
+		strcpy(ifr.ifr_name, np->dev_name);
+
+		if (kernel_sock_ioctl(sock, SIOCGIFADDR, &ifr) < 0) {
+			printk(KERN_ERR "%s: Failed to get IP address for %s\n",
+			       np->name, np->dev_name);
+			sock_release(sock);
+			goto release;
+		}
+
+		sock_release(sock);
+
+		sin = &ifr.ifr_addr;
+
+		np->local_ip = ntohl(sin->sin_addr.s_addr);
+#else
 		rcu_read_lock();
 		in_dev = __in_dev_get_rcu(ndev);
 
@@ -759,6 +787,7 @@ int netpoll_setup(struct netpoll *np)
 
 		np->local_ip = ntohl(in_dev->ifa_list->ifa_local);
 		rcu_read_unlock();
+#endif
 		printk(KERN_INFO "%s: local IP %d.%d.%d.%d\n",
 		       np->name, HIPQUAD(np->local_ip));
 	}

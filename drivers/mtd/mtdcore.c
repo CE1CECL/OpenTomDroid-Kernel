@@ -42,6 +42,7 @@ static LIST_HEAD(mtd_notifiers);
  *	if the number of present devices exceeds MAX_MTD_DEVICES (i.e. 16)
  */
 
+#if (!defined(CONFIG_ARCH_BCM282X) && !defined(CONFIG_PLAT_BCM476X))
 int add_mtd_device(struct mtd_info *mtd)
 {
 	int i;
@@ -85,6 +86,70 @@ int add_mtd_device(struct mtd_info *mtd)
 	mutex_unlock(&mtd_table_mutex);
 	return 1;
 }
+#else
+
+int add_mtd_device(struct mtd_info *mtd)
+{
+	int i;
+	int beginning_index, end_index;
+
+	down(&mtd_table_mutex);
+	
+	if (strncmp(mtd->name, "ram-", strlen("ram-")) ==0) {
+		/* MTD partition number 0 and 1 are reserved for RAM-MTD. 
+		 */
+		beginning_index = 0;
+		end_index = 1;
+	}
+	else if ((strncmp(mtd->name, "nor-", strlen("nor-")) ==0) || (strncmp(mtd->name, "serial-", strlen("serial-")) ==0) || (strncmp (mtd->name, "spi", strlen("spi"))==0) ) {
+		/* MTD partition number 2 to 5 are reserved for NOR-MTD
+		 */
+		beginning_index = 2;
+		end_index = 5;
+	}
+	else if (strncmp(mtd->name, "nand-", strlen("nand-")) ==0) {
+		/* MTD partition number 6 to 15 are reserved for NAND-MTD
+		 */
+		beginning_index = 6;
+		end_index = MAX_MTD_DEVICES - 1;
+	}
+	else {
+		printk(KERN_ERR "Unrecognized MTD partition name %s\n", mtd->name);
+		goto error;
+	}
+	
+	for (i=beginning_index; i <= end_index; i++)
+		if (!mtd_table[i]) {
+			struct list_head *this;
+
+			mtd_table[i] = mtd;
+			mtd->index = i;
+			mtd->usecount = 0;
+
+			DEBUG(0, "mtd: Giving out device %d to %s\n",i, mtd->name);
+			/* No need to get a refcount on the module containing
+			   the notifier, since we hold the mtd_table_mutex */
+			list_for_each(this, &mtd_notifiers) {
+				struct mtd_notifier *not = list_entry(this, struct mtd_notifier, list);
+				not->add(mtd);
+			}
+			
+			up(&mtd_table_mutex);
+			/* We _know_ we aren't being removed, because
+			   our caller is still holding us here. So none
+			   of this try_ nonsense, and no bitching about it
+			   either. :) */
+			__module_get(THIS_MODULE);
+			return 0;
+		}
+	
+error:
+	up(&mtd_table_mutex);	
+	return 1;
+}
+
+
+#endif
 
 /**
  *	del_mtd_device - unregister an MTD device
@@ -344,8 +409,12 @@ static inline int mtd_proc_info (char *buf, int i)
 	if (!this)
 		return 0;
 
+#ifdef CONFIG_MTD_LFS_SUPPORT
+	return sprintf(buf, "mtd%d: 0x%016llx 0x%8.8x \"%s\"\n", i, this->size,this->erasesize, this->name);
+#else	
 	return sprintf(buf, "mtd%d: %8.8x %8.8x \"%s\"\n", i, this->size,
 		       this->erasesize, this->name);
+#endif
 }
 
 static int mtd_read_proc (char *page, char **start, off_t off, int count,

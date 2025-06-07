@@ -309,6 +309,8 @@ extern int fat_fill_super(struct super_block *sb, void *data, int silent,
 
 extern int fat_flush_inodes(struct super_block *sb, struct inode *i1,
 		            struct inode *i2);
+extern int fat_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
+		      u64 start, u64 len);
 /* fat/misc.c */
 extern void fat_fs_panic(struct super_block *s, const char *fmt, ...)
 	__attribute__ ((format (printf, 2, 3))) __cold;

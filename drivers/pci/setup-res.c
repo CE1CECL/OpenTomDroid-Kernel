@@ -28,6 +28,12 @@
 
 void pci_update_resource(struct pci_dev *dev, struct resource *res, int resno)
 {
+#ifdef CONFIG_MMC_BCM_SD
+	/* 
+	 * BCM emulated PCI device resources are fixed. 
+	 */
+	return;
+#else
 	struct pci_bus_region region;
 	u32 new, check, mask;
 	int reg;
@@ -96,6 +102,7 @@ void pci_update_resource(struct pci_dev *dev, struct resource *res, int resno)
 	dev_dbg(&dev->dev, "BAR %d: moved to bus [%#llx-%#llx] flags %#lx\n",
 		resno, (unsigned long long)region.start,
 		(unsigned long long)region.end, res->flags);
+#endif
 }
 
 int pci_claim_resource(struct pci_dev *dev, int resource)
@@ -124,6 +131,16 @@ int pci_claim_resource(struct pci_dev *dev, int resource)
 
 int pci_assign_resource(struct pci_dev *dev, int resno)
 {
+#ifdef CONFIG_MMC_BCM_SD
+
+        /* The BCM internal emulated PCI devices memory
+         * and IO mapped addresses are fixed. BCM does not
+         * have external PCI devices.
+         */
+        return 0;
+
+#else
+
 	struct pci_bus *bus = dev->bus;
 	struct resource *res = dev->resource + resno;
 	resource_size_t size, min, align;
@@ -166,6 +183,7 @@ int pci_assign_resource(struct pci_dev *dev, int resno)
 	}
 
 	return ret;
+#endif
 }
 
 #if 0

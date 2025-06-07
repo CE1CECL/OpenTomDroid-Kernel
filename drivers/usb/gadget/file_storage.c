@@ -259,24 +259,18 @@
 
 /*-------------------------------------------------------------------------*/
 
-#define DRIVER_DESC		"File-backed Storage Gadget"
+#define DRIVER_DESC		"TomTom GO"
 #define DRIVER_NAME		"g_file_storage"
 #define DRIVER_VERSION		"7 August 2007"
 
-static const char longname[] = DRIVER_DESC;
 static const char shortname[] = DRIVER_NAME;
 
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_AUTHOR("Alan Stern");
 MODULE_LICENSE("Dual BSD/GPL");
 
-/* Thanks to NetChip Technologies for donating this product ID.
- *
- * DO NOT REUSE THESE IDs with any other driver!!  Ever!!
- * Instead:  allocate your own, using normal USB-IF procedures. */
-#define DRIVER_VENDOR_ID	0x0525	// NetChip
-#define DRIVER_PRODUCT_ID	0xa4a5	// Linux-USB File-backed Storage Gadget
-
+#define DRIVER_VENDOR_ID	0x1390	// TomTom
+#define DRIVER_PRODUCT_ID	0x0001  // USB Mass Storage, indistinguisable from all other tomtoms
 
 /*
  * This driver assumes self-powered hardware and has no way for users to
@@ -284,6 +278,13 @@ MODULE_LICENSE("Dual BSD/GPL");
  * and endpoint addresses.
  */
 
+
+/* Additional configuration to push data from this file storage
+ * to upper layers .
+ */
+#ifndef CONFIG_USB_FILE_STORAGE_PROGRESS_REPORT
+#define CONFIG_USB_FILE_STORAGE_PROGRESS_REPORT
+#endif
 
 /*-------------------------------------------------------------------------*/
 
@@ -348,6 +349,9 @@ static struct {
 	unsigned short	product;
 	unsigned short	release;
 	unsigned int	buflen;
+	char		*serialno_parm;
+	char		*manufacturer_parm;
+	char		*longname_parm;
 
 	int		transport_type;
 	char		*transport_name;
@@ -355,9 +359,10 @@ static struct {
 	char		*protocol_name;
 
 } mod_data = {					// Default values
+	.file[0]		= "",
 	.transport_parm		= "BBB",
 	.protocol_parm		= "SCSI",
-	.removable		= 0,
+	.removable		= 1,
 	.can_stall		= 1,
 	.vendor			= DRIVER_VENDOR_ID,
 	.product		= DRIVER_PRODUCT_ID,
@@ -382,6 +387,23 @@ MODULE_PARM_DESC(removable, "true to simulate removable media");
 module_param_named(stall, mod_data.can_stall, bool, S_IRUGO);
 MODULE_PARM_DESC(stall, "false to prevent bulk stalls");
 
+module_param_named(vendor, mod_data.vendor, ushort, S_IRUGO);
+MODULE_PARM_DESC(vendor, "USB Vendor ID");
+
+module_param_named(product, mod_data.product, ushort, S_IRUGO);
+MODULE_PARM_DESC(product, "USB Product ID");
+
+module_param_named(release, mod_data.release, ushort, S_IRUGO);
+MODULE_PARM_DESC(release, "USB release number");
+
+module_param_named(serialno, mod_data.serialno_parm, charp, S_IRUGO);
+MODULE_PARM_DESC(serialno, "USB Device Serial Number");
+
+module_param_named(manufacturer, mod_data.manufacturer_parm, charp, S_IRUGO);
+MODULE_PARM_DESC(manufacturer, "Manufacturer String");
+
+module_param_named(longname, mod_data.longname_parm, charp, S_IRUGO);
+MODULE_PARM_DESC(longname, "Product Name String");
 
 /* In the non-TEST version, only the module parameters listed above
  * are available. */
@@ -393,15 +415,6 @@ MODULE_PARM_DESC(transport, "type of transport (BBB, CBI, or CB)");
 module_param_named(protocol, mod_data.protocol_parm, charp, S_IRUGO);
 MODULE_PARM_DESC(protocol, "type of protocol (RBC, 8020, QIC, UFI, "
 		"8070, or SCSI)");
-
-module_param_named(vendor, mod_data.vendor, ushort, S_IRUGO);
-MODULE_PARM_DESC(vendor, "USB Vendor ID");
-
-module_param_named(product, mod_data.product, ushort, S_IRUGO);
-MODULE_PARM_DESC(product, "USB Product ID");
-
-module_param_named(release, mod_data.release, ushort, S_IRUGO);
-MODULE_PARM_DESC(release, "USB release number");
 
 module_param_named(buflen, mod_data.buflen, uint, S_IRUGO);
 MODULE_PARM_DESC(buflen, "I/O buffer size");
@@ -553,10 +566,15 @@ struct lun {
 	unsigned int	prevent_medium_removal : 1;
 	unsigned int	registered : 1;
 	unsigned int	info_valid : 1;
+	unsigned int    stopped    : 1;
 
 	u32		sense_data;
 	u32		sense_data_info;
 	u32		unit_attention_data;
+#ifdef CONFIG_USB_FILE_STORAGE_PROGRESS_REPORT
+	u32 		data_in;  /* Data in from the host counter (before the cache) */
+	u32 		data_out; /* Data out from the file back-end to the controller pipes */
+#endif
 
 	struct device	dev;
 };
@@ -997,6 +1015,7 @@ ep_desc(struct usb_gadget *g, struct usb_endpoint_descriptor *fs,
  * characters. */
 static char				manufacturer[64];
 static char				serial[13];
+static char                             longname[256] = DRIVER_DESC;
 
 /* Static strings, in UTF-8 (for simplicity we use only ASCII characters) */
 static struct usb_string		strings[] = {
@@ -1644,6 +1663,10 @@ static int do_read(struct fsg_dev *fsg)
 					(int) nread, amount);
 			nread -= (nread & 511);	// Round down to a block
 		}
+#ifdef CONFIG_USB_FILE_STORAGE_PROGRESS_REPORT
+		curlun->data_out += nread; 
+	 	sysfs_notify(&curlun->dev.kobj, NULL, "stats");
+#endif
 		file_offset  += nread;
 		amount_left  -= nread;
 		fsg->residue -= nread;
@@ -1826,6 +1849,10 @@ static int do_write(struct fsg_dev *fsg)
 				nwritten -= (nwritten & 511);
 						// Round down to a block
 			}
+#ifdef CONFIG_USB_FILE_STORAGE_PROGRESS_REPORT
+			curlun->data_in += nwritten; 
+	 		sysfs_notify(&curlun->dev.kobj, NULL, "stats");
+#endif
 			file_offset += nwritten;
 			amount_left_to_write -= nwritten;
 			fsg->residue -= nwritten;
@@ -2021,8 +2048,10 @@ static int do_inquiry(struct fsg_dev *fsg, struct fsg_buffhd *bh)
 {
 	u8	*buf = (u8 *) bh->buf;
 
+#if 0
 	static char vendor_id[] = "Linux   ";
 	static char product_id[] = "File-Stor Gadget";
+#endif
 
 	if (!fsg->curlun) {		// Unsupported LUNs are okay
 		fsg->bad_lun_okay = 1;
@@ -2034,12 +2063,20 @@ static int do_inquiry(struct fsg_dev *fsg, struct fsg_buffhd *bh)
 	memset(buf, 0, 8);	// Non-removable, direct-access device
 	if (mod_data.removable)
 		buf[1] = 0x80;
-	buf[2] = 2;		// ANSI SCSI level 2
+	buf[2] = 4; // 2;		// ANSI SCSI level 2
 	buf[3] = 2;		// SCSI-2 INQUIRY data format
 	buf[4] = 31;		// Additional length
 				// No special options
+#if 1
+	/* TomTom specific implementation to not confuse any version of HOME on any platform */
+	sprintf(buf + 7,  "%8s", "TomTom ");
+	sprintf(buf + 15, "%3s", "GO");
+	sprintf(buf + 19, "%12s", mod_data.serialno_parm);
+	memcpy(buf + 32,  "0100", 4);
+#else
 	sprintf(buf + 8, "%-8s%-16s%04x", vendor_id, product_id,
 			mod_data.release);
+#endif
 	return 36;
 }
 
@@ -2209,7 +2246,6 @@ static int do_start_stop(struct fsg_dev *fsg)
 	loej = fsg->cmnd[4] & 0x02;
 	start = fsg->cmnd[4] & 0x01;
 
-#ifdef CONFIG_USB_FILE_STORAGE_TEST
 	if ((fsg->cmnd[1] & ~0x01) != 0 ||		// Mask away Immed
 			(fsg->cmnd[4] & ~0x03) != 0) {	// Mask LoEj, Start
 		curlun->sense_data = SS_INVALID_FIELD_IN_CDB;
@@ -2227,9 +2263,13 @@ static int do_start_stop(struct fsg_dev *fsg)
 		if (loej) {		// Simulate an unload/eject
 			up_read(&fsg->filesem);
 			down_write(&fsg->filesem);
-			close_backing_file(curlun);
+			close_all_backing_files(fsg);
 			up_write(&fsg->filesem);
 			down_read(&fsg->filesem);
+			if( (fsg->gadget != NULL) && (fsg->gadget->dev.parent != NULL) )
+				kobject_uevent( &(fsg->gadget->dev.parent->kobj), KOBJ_REMOVE );
+			else
+				LDBG( curlun, "Gadget is NULL on eject ???\n" );
 		}
 	} else {
 
@@ -2238,9 +2278,11 @@ static int do_start_stop(struct fsg_dev *fsg)
 		if (!backing_file_is_open(curlun)) {
 			curlun->sense_data = SS_MEDIUM_NOT_PRESENT;
 			return -EINVAL;
-		}
+		 } else {
+                        curlun->stopped = 0;
+                }
+
 	}
-#endif
 	return 0;
 }
 
@@ -2697,6 +2739,12 @@ static int check_command(struct fsg_dev *fsg, int cmnd_size,
 			fsg->phase_error = 1;
 			return -EINVAL;
 		}
+
+		/* Special case workaround: MS-windows issues SC_MODE_SENSE_6
+ 		 *  with unexpected length */
+		if(fsg->cmnd[0] == SC_MODE_SENSE_6) {
+                	cmnd_size = fsg->cmnd_size;
+		}
 	}
 
 	/* Check that the LUN values are consistent */
@@ -2898,9 +2946,14 @@ static int do_scsi_command(struct fsg_dev *fsg)
 
 	case SC_TEST_UNIT_READY:
 		fsg->data_size_from_cmnd = 0;
-		reply = check_command(fsg, 6, DATA_DIR_NONE,
-				0, 1,
-				"TEST UNIT READY");
+		 if ((reply = check_command(fsg, 6, DATA_DIR_NONE,
+                                0, 1,
+                                "TEST UNIT READY")) == 0) {
+                        if(fsg->luns[fsg->lun].stopped) {
+                                fsg->luns[fsg->lun].sense_data = SS_MEDIUM_NOT_PRESENT;
+                                reply = -EINVAL;
+                        }
+                }
 		break;
 
 	/* Although optional, this command is used by MS-Windows.  We
@@ -2970,6 +3023,10 @@ static int do_scsi_command(struct fsg_dev *fsg)
 		reply = min((u32) reply, fsg->data_size_from_cmnd);
 		bh->inreq->length = reply;
 		bh->state = BUF_STATE_FULL;
+		if(fsg->cmnd[0] == SC_MODE_SENSE_6) {
+			fsg->residue = 0;
+			return 0;
+		}
 		fsg->residue -= reply;
 	}				// Otherwise it's already set
 
@@ -3402,6 +3459,9 @@ static void handle_exception(struct fsg_dev *fsg)
 		break;
 
 	case FSG_STATE_CONFIG_CHANGE:
+		for (i = 0; i < fsg->nluns; ++i) {
+                        fsg->luns[i].stopped = 0;
+                }
 		rc = do_set_config(fsg, new_config);
 		if (fsg->ep0_req_tag != exception_req_tag)
 			break;
@@ -3439,6 +3499,7 @@ static int fsg_main_thread(void *fsg_)
 	allow_signal(SIGTERM);
 	allow_signal(SIGKILL);
 	allow_signal(SIGUSR1);
+	
 
 	/* Allow the thread to be frozen */
 	set_freezable();
@@ -3454,7 +3515,7 @@ static int fsg_main_thread(void *fsg_)
 			handle_exception(fsg);
 			continue;
 		}
-
+		
 		if (!fsg->running) {
 			sleep_thread(fsg);
 			continue;
@@ -3691,9 +3752,24 @@ static ssize_t store_file(struct device *dev, struct device_attribute *attr,
 }
 
 
+#ifdef CONFIG_USB_FILE_STORAGE_PROGRESS_REPORT
+/* Put data_in and data_out in the buffer */
+static ssize_t show_stats(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct lun	*curlun = dev_to_lun(dev);
+	return sprintf(buf, "%i %i\n", curlun->data_in , curlun->data_out);
+}
+#endif
+
 /* The write permissions and store_xxx pointers are set in fsg_bind() */
 static DEVICE_ATTR(ro, 0444, show_ro, NULL);
 static DEVICE_ATTR(file, 0444, show_file, NULL);
+
+
+#ifdef CONFIG_USB_FILE_STORAGE_PROGRESS_REPORT
+/* Return the IO stats for the device */
+static DEVICE_ATTR(stats, 0444, show_stats, NULL);
+#endif
 
 
 /*-------------------------------------------------------------------------*/
@@ -3729,6 +3805,9 @@ static void /* __init_or_exit */ fsg_unbind(struct usb_gadget *gadget)
 		if (curlun->registered) {
 			device_remove_file(&curlun->dev, &dev_attr_ro);
 			device_remove_file(&curlun->dev, &dev_attr_file);
+#ifdef CONFIG_USB_FILE_STORAGE_PROGRESS_REPORT
+			device_remove_file(&curlun->dev, &dev_attr_stats);
+#endif
 			device_unregister(&curlun->dev);
 			curlun->registered = 0;
 		}
@@ -3899,14 +3978,18 @@ static int __init fsg_bind(struct usb_gadget *gadget)
 			INFO(fsg, "failed to register LUN%d: %d\n", i, rc);
 			goto out;
 		}
-		if ((rc = device_create_file(&curlun->dev,
-					&dev_attr_ro)) != 0 ||
-				(rc = device_create_file(&curlun->dev,
-					&dev_attr_file)) != 0) {
+		if (
+				(rc = device_create_file(&curlun->dev, &dev_attr_ro)) != 0 
+				|| (rc = device_create_file(&curlun->dev, &dev_attr_file)) != 0 
+#ifdef CONFIG_USB_FILE_STORAGE_PROGRESS_REPORT
+				||	(rc = device_create_file(&curlun->dev, &dev_attr_stats) != 0) 
+#endif
+		) {
 			device_unregister(&curlun->dev);
 			goto out;
 		}
 		curlun->registered = 1;
+		curlun->stopped     = 0;
 		kref_get(&fsg->ref);
 
 		if (mod_data.file[i] && *mod_data.file[i]) {
@@ -4000,19 +4083,28 @@ static int __init fsg_bind(struct usb_gadget *gadget)
 	/* This should reflect the actual gadget power source */
 	usb_gadget_set_selfpowered(gadget);
 
-	snprintf(manufacturer, sizeof manufacturer, "%s %s with %s",
-			init_utsname()->sysname, init_utsname()->release,
-			gadget->name);
+	if (mod_data.longname_parm)
+		strcpy(longname, mod_data.longname_parm);
+
+	if (!mod_data.manufacturer_parm)
+		snprintf(manufacturer, sizeof manufacturer, "%s %s with %s",
+				init_utsname()->sysname, init_utsname()->release,
+				gadget->name);
+	else
+		strcpy(manufacturer, mod_data.manufacturer_parm);
 
 	/* On a real device, serial[] would be loaded from permanent
 	 * storage.  We just encode it from the driver version string. */
-	for (i = 0; i < sizeof(serial) - 2; i += 2) {
-		unsigned char		c = DRIVER_VERSION[i / 2];
-
-		if (!c)
-			break;
-		sprintf(&serial[i], "%02X", c);
-	}
+	if (!mod_data.serialno_parm) {
+		for (i = 0; i < sizeof(serial) - 2; i += 2) {
+			unsigned char		c = DRIVER_VERSION[i / 2];
+	
+			if (!c)
+				break;
+			sprintf(&serial[i], "%02X", c);
+		}
+	} else
+		strcpy(serial, mod_data.serialno_parm);
 
 	fsg->thread_task = kthread_create(fsg_main_thread, fsg,
 			"file-storage-gadget");
@@ -4078,6 +4170,7 @@ static void fsg_suspend(struct usb_gadget *gadget)
 
 	DBG(fsg, "suspend\n");
 	set_bit(SUSPENDED, &fsg->atomic_bitflags);
+	fsg->running = 0;
 }
 
 static void fsg_resume(struct usb_gadget *gadget)
@@ -4144,8 +4237,11 @@ static int __init fsg_init(void)
 		kref_put(&fsg->ref, fsg_release);
 	return rc;
 }
+#ifndef MODULE
+device_initcall_sync(fsg_init);
+#else
 module_init(fsg_init);
-
+#endif
 
 static void __exit fsg_cleanup(void)
 {

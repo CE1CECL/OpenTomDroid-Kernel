@@ -42,7 +42,7 @@
 #define __deprecated			__attribute__((deprecated))
 #define __packed			__attribute__((packed))
 #define __weak				__attribute__((weak))
-#define __naked				__attribute__((naked))
+#define __naked				__attribute__((naked)) notrace
 #define __noreturn			__attribute__((noreturn))
 
 /*

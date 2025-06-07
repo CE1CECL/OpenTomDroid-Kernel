@@ -420,8 +420,14 @@ static int create_bbt(struct mtd_info *mtd, uint8_t *buf,
 		if (bd->options & NAND_BBT_SCANALLPAGES)
 			ret = scan_block_full(mtd, bd, from, buf, readlen,
 					      scanlen, len);
-		else
+		else {
 			ret = scan_block_fast(mtd, bd, from, buf, len);
+         // BCM1161 - do not report block 0 error since armboot
+         // uses badblock location for other purposes.
+         // Block0 is always good.
+         if ((i >> 1) == 0)
+            ret = 0;
+      }
 
 		if (ret < 0)
 			return ret;
@@ -954,6 +960,9 @@ int nand_scan_bbt(struct mtd_info *mtd, struct nand_bbt_descr *bd)
 	struct nand_chip *this = mtd->priv;
 	int len, res = 0;
 	uint8_t *buf;
+#ifdef CONFIG_BRCM_BCM282X_MTD_NAND
+        int order, n_pages;
+#endif
 	struct nand_bbt_descr *td = this->bbt_td;
 	struct nand_bbt_descr *md = this->bbt_md;
 
@@ -980,7 +989,23 @@ int nand_scan_bbt(struct mtd_info *mtd, struct nand_bbt_descr *bd)
 	/* Allocate a temporary buffer for one eraseblock incl. oob */
 	len = (1 << this->bbt_erase_shift);
 	len += (len >> this->page_shift) * mtd->oobsize;
+#ifndef CONFIG_BRCM_BCM282X_MTD_NAND
 	buf = vmalloc(len);
+#else
+        n_pages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+	order = 0;
+	while (n_pages)
+	{
+		order++;
+		n_pages >>= 1;
+	}
+
+	if (n_pages <= (2>>(order-1)))
+		order--;
+
+	buf = (uint8_t *)__get_free_pages(GFP_KERNEL, order);
+#endif
 	if (!buf) {
 		printk(KERN_ERR "nand_bbt: Out of memory\n");
 		kfree(this->bbt);
@@ -1004,7 +1029,11 @@ int nand_scan_bbt(struct mtd_info *mtd, struct nand_bbt_descr *bd)
 	if (md)
 		mark_bbt_region(mtd, md);
 
+#ifndef CONFIG_BRCM_BCM282X_MTD_NAND
 	vfree(buf);
+#else
+        free_pages((unsigned long)buf, order);
+#endif
 	return res;
 }
 
@@ -1116,21 +1145,43 @@ static uint8_t mirror_pattern[] = {'1', 't', 'b', 'B' };
 
 static struct nand_bbt_descr bbt_main_descr = {
 	.options = NAND_BBT_LASTBLOCK | NAND_BBT_CREATE | NAND_BBT_WRITE
+#ifndef CONFIG_BRCM_BCM282X_MTD_NAND
 		| NAND_BBT_2BIT | NAND_BBT_VERSION | NAND_BBT_PERCHIP,
+#else
+                | NAND_BBT_2BIT | NAND_BBT_VERSION,
+#endif
+#ifndef CONFIG_BRCM_BCM282X_MTD_NAND
 	.offs =	8,
 	.len = 4,
 	.veroffs = 12,
 	.maxblocks = 4,
+#else
+        .offs = 2,
+        .len = 4,
+        .veroffs = 6,
+        .maxblocks = 8,
+#endif
 	.pattern = bbt_pattern
 };
 
 static struct nand_bbt_descr bbt_mirror_descr = {
 	.options = NAND_BBT_LASTBLOCK | NAND_BBT_CREATE | NAND_BBT_WRITE
+#ifndef CONFIG_BRCM_BCM282X_MTD_NAND
 		| NAND_BBT_2BIT | NAND_BBT_VERSION | NAND_BBT_PERCHIP,
+#else
+                | NAND_BBT_2BIT | NAND_BBT_VERSION,
+#endif
+#ifndef CONFIG_BRCM_BCM282X_MTD_NAND
 	.offs =	8,
 	.len = 4,
 	.veroffs = 12,
 	.maxblocks = 4,
+#else
+        .offs = 2,
+        .len = 4,
+        .veroffs = 6,
+        .maxblocks = 8,
+#endif
 	.pattern = mirror_pattern
 };
 

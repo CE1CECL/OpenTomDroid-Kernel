@@ -11,6 +11,9 @@
 
 #include <linux/scatterlist.h>
 
+#ifdef CONFIG_MMC_BCM_SD
+#define SDHCI_HOST_MAX_CLK_LS_MODE	25000000
+#endif
 /*
  * Controller registers
  */
@@ -57,6 +60,7 @@
 #define  SDHCI_DATA_AVAILABLE	0x00000800
 #define  SDHCI_CARD_PRESENT	0x00010000
 #define  SDHCI_WRITE_PROTECT	0x00080000
+#define  SDHCI_DATA_BIT(x)	(1 << ((x) + 20))
 
 #define SDHCI_HOST_CONTROL 	0x28
 #define  SDHCI_CTRL_LED		0x01
@@ -67,6 +71,10 @@
 #define   SDHCI_CTRL_ADMA1	0x08
 #define   SDHCI_CTRL_ADMA32	0x10
 #define   SDHCI_CTRL_ADMA64	0x18
+#define  SDHCI_CTRL_8BITBUS	0x20
+#define  SDHCI_CTRL_CD_TESTLVL	0x40
+#define  SDHCI_CTRL_CD_SIGDET	0x80
+
 
 #define SDHCI_POWER_CONTROL	0x29
 #define  SDHCI_POWER_ON		0x01
@@ -113,6 +121,10 @@
 #define  SDHCI_INT_BUS_POWER	0x00800000
 #define  SDHCI_INT_ACMD12ERR	0x01000000
 #define  SDHCI_INT_ADMA_ERROR	0x02000000
+#define  SDHCI_INT_CEATAERR_SIG	0x20000000
+
+#define SDHCI_FORCE_EVENT_INT_STATUS	0x50
+#define  SDHCI_FINT_CEATAERR_SIG	0x20000000
 
 #define  SDHCI_INT_NORMAL_MASK	0x00007FFF
 #define  SDHCI_INT_ERROR_MASK	0xFFFF8000
@@ -122,7 +134,7 @@
 #define  SDHCI_INT_DATA_MASK	(SDHCI_INT_DATA_END | SDHCI_INT_DMA_END | \
 		SDHCI_INT_DATA_AVAIL | SDHCI_INT_SPACE_AVAIL | \
 		SDHCI_INT_DATA_TIMEOUT | SDHCI_INT_DATA_CRC | \
-		SDHCI_INT_DATA_END_BIT)
+		SDHCI_INT_DATA_END_BIT | SDHCI_ADMA_ERROR)
 
 #define SDHCI_ACMD12_ERR	0x3C
 
@@ -171,6 +183,7 @@
 #define  SDHCI_SPEC_VER_SHIFT	0
 #define   SDHCI_SPEC_100	0
 #define   SDHCI_SPEC_200	1
+#define   SDHCI_SPEC_200_ADMA	2
 
 struct sdhci_ops;
 
@@ -212,6 +225,12 @@ struct sdhci_host {
 #define SDHCI_QUIRK_FORCE_HIGHSPEED			(1<<14)
 /* Controller does not provide transfer-complete interrupt when not busy */
 #define SDHCI_QUIRK_NO_BUSY_IRQ				(1<<15)
+/* Controller does not use HISPD bit field in HI-SPEED SD cards */
+#define SDHCI_QUIRK_NO_HISPD_BIT			(1<<16)
+/* Controller has no support for WP status. */
+#define SDHCI_QUIRK_NO_WP				(1<<17)
+/* Controller uses external detection for card detect. */
+#define SDHCI_QUIRK_EXTERNAL_CARD_DETECT		(1<<18)
 
 	int			irq;		/* Device IRQ */
 	void __iomem *		ioaddr;		/* Mapped address */
@@ -234,6 +253,7 @@ struct sdhci_host {
 #define SDHCI_USE_ADMA		(1<<1)		/* Host is ADMA capable */
 #define SDHCI_REQ_USE_DMA	(1<<2)		/* Use DMA for this req. */
 #define SDHCI_DEVICE_DEAD	(1<<3)		/* Device unresponsive */
+#define SDHCI_DEVICE_ALIVE	(1<<4)		/* used on ext card detect */
 
 	unsigned int		version;	/* SDHCI spec. version */
 
@@ -267,15 +287,30 @@ struct sdhci_host {
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
+/* For ADMA2 */
+struct sdhci_adma2_desc {
+	u32	len_attr;	/* length + attribute	*/
+	u32	dma_addr;	/* dma address	        */
+};
 
 struct sdhci_ops {
 	int		(*enable_dma)(struct sdhci_host *host);
+	unsigned int	(*get_max_clock)(struct sdhci_host *host);
+	unsigned int	(*get_timeout_clock)(struct sdhci_host *host);
+
+	void		(*change_clock)(struct sdhci_host *host,
+					unsigned int clock);
+
+	void		(*set_ios)(struct sdhci_host *host,
+				   struct mmc_ios *ios);
 };
 
 
 extern struct sdhci_host *sdhci_alloc_host(struct device *dev,
 	size_t priv_size);
 extern void sdhci_free_host(struct sdhci_host *host);
+
+extern void sdhci_change_clock(struct sdhci_host *host, unsigned int clock);
 
 static inline void *sdhci_priv(struct sdhci_host *host)
 {

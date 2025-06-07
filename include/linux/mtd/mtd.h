@@ -101,7 +101,12 @@ struct mtd_oob_ops {
 struct mtd_info {
 	u_char type;
 	u_int32_t flags;
+
+#ifdef CONFIG_MTD_LFS_SUPPORT
+  	loff_t 	size;
+#else
 	u_int32_t size;	 // Total size of the MTD
+#endif  
 
 	/* "Major" erase size for the device. Naïve users may take this
 	 * to be the only erase size available, or may use the more detailed

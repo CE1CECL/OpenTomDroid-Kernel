@@ -39,5 +39,10 @@ config SAMPLE_KRETPROBES
 	default m
 	depends on SAMPLE_KPROBES && KRETPROBES
 
+config SAMPLE_PSRWLOCK
+	tristate "Build psrwlock example -- loadable modules only"
+	default m
+	depends on m
+
 endif # SAMPLES
 

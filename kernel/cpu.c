@@ -24,6 +24,16 @@
 cpumask_t cpu_present_map __read_mostly;
 EXPORT_SYMBOL(cpu_present_map);
 
+
+/*
+ * Represents isolated cpu's.
+ * In general any kernel activity should be avoided as much as possible
+ * on these cpu's. Isolated cpu's are not load balanced by the scheduler. 
+ */
+cpumask_t cpu_isolated_map __read_mostly = CPU_MASK_NONE;
+EXPORT_SYMBOL(cpu_isolated_map);
+
+
 #ifndef CONFIG_SMP
 
 /*
@@ -453,6 +463,28 @@ out:
 	cpu_maps_update_done();
 }
 #endif /* CONFIG_PM_SLEEP_SMP */
+
+#ifdef CONFIG_CPUISOL
+/* Setup the mask of isolated cpus */
+
+static int __initdata isolcpu[NR_CPUS];
+
+static int __init isolated_cpu_setup(char *str)
+{
+	int i, n;
+
+	str = get_options(str, ARRAY_SIZE(isolcpu), isolcpu);
+	n   = isolcpu[0];
+
+	cpus_clear(cpu_isolated_map);
+	for (i = 1; i <= n; i++)
+		if (isolcpu[i] < NR_CPUS)
+			cpu_set(isolcpu[i], cpu_isolated_map);
+	return 1;
+}
+
+__setup("isolcpus=", isolated_cpu_setup);
+#endif
 
 /**
  * notify_cpu_starting(cpu) - call the CPU_STARTING notifiers

@@ -1933,9 +1933,6 @@ long do_mount(char *dev_name, char *dir_name, char *type_page,
 	if (flags & MS_RDONLY)
 		mnt_flags |= MNT_READONLY;
 
-	flags &= ~(MS_NOSUID | MS_NOEXEC | MS_NODEV | MS_ACTIVE |
-		   MS_NOATIME | MS_NODIRATIME | MS_RELATIME| MS_KERNMOUNT);
-
 	/* ... and get the mountpoint */
 	retval = kern_path(dir_name, LOOKUP_FOLLOW, &path);
 	if (retval)
@@ -1943,6 +1940,10 @@ long do_mount(char *dev_name, char *dir_name, char *type_page,
 
 	retval = security_sb_mount(dev_name, &path,
 				   type_page, flags, data_page);
+
+	flags &= ~(MS_NOSUID | MS_NOEXEC | MS_NODEV | MS_ACTIVE |
+		   MS_NOATIME | MS_NODIRATIME | MS_RELATIME| MS_KERNMOUNT);
+
 	if (retval)
 		goto dput_out;
 
@@ -2103,6 +2104,8 @@ void set_fs_root(struct fs_struct *fs, struct path *path)
 		path_put(&old_root);
 }
 
+EXPORT_SYMBOL(set_fs_root);
+
 /*
  * Replace the fs->{pwdmnt,pwd} with {mnt,dentry}. Put the old values.
  * It can block. Requires the big lock held.
@@ -2120,6 +2123,8 @@ void set_fs_pwd(struct fs_struct *fs, struct path *path)
 	if (old_pwd.dentry)
 		path_put(&old_pwd);
 }
+
+EXPORT_SYMBOL(set_fs_pwd);
 
 static void chroot_fs_refs(struct path *old_root, struct path *new_root)
 {

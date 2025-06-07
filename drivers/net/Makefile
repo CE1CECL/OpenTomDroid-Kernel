@@ -2,6 +2,7 @@
 # Makefile for the Linux network (ethercard) device drivers.
 #
 
+obj-$(CONFIG_ENC28J60) += enc28j60.o
 obj-$(CONFIG_E1000) += e1000/
 obj-$(CONFIG_E1000E) += e1000e/
 obj-$(CONFIG_IBM_NEW_EMAC) += ibm_newemac/
@@ -254,6 +255,7 @@ obj-$(CONFIG_ETRAX_ETHERNET) += cris/
 obj-$(CONFIG_ENP2611_MSF_NET) += ixp2000/
 
 obj-$(CONFIG_NETCONSOLE) += netconsole.o
+obj-$(CONFIG_KGDBOE) += kgdboe.o
 
 obj-$(CONFIG_FS_ENET) += fs_enet/
 

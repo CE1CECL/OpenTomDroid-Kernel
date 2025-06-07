@@ -179,7 +179,8 @@ struct hci_conn {
 	struct timer_list disc_timer;
 	struct timer_list idle_timer;
 
-	struct work_struct work;
+	struct work_struct work_add;
+	struct work_struct work_del;
 
 	struct device	dev;
 
@@ -413,6 +414,7 @@ struct hci_dev *hci_alloc_dev(void);
 void hci_free_dev(struct hci_dev *hdev);
 int hci_register_dev(struct hci_dev *hdev);
 int hci_unregister_dev(struct hci_dev *hdev);
+void hci_conn_init_sysfs(struct hci_conn *conn);
 int hci_suspend_dev(struct hci_dev *hdev);
 int hci_resume_dev(struct hci_dev *hdev);
 int hci_dev_open(__u16 dev);

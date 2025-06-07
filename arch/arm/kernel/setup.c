@@ -25,6 +25,7 @@
 #include <linux/smp.h>
 #include <linux/fs.h>
 
+#include <asm/unified.h>
 #include <asm/cpu.h>
 #include <asm/cputype.h>
 #include <asm/elf.h>
@@ -39,9 +40,15 @@
 #include <asm/mach/irq.h>
 #include <asm/mach/time.h>
 #include <asm/traps.h>
+#include <asm/unwind.h>
 
 #include "compat.h"
 #include "atags.h"
+
+#ifdef CONFIG_TOMTOM_FDT
+#include <plat/factorydata.h>
+#include <linux/bootmem.h>
+#endif
 
 #ifndef MEM_SIZE
 #define MEM_SIZE	(16*1024*1024)
@@ -83,6 +90,14 @@ EXPORT_SYMBOL(system_serial_high);
 
 unsigned int elf_hwcap;
 EXPORT_SYMBOL(elf_hwcap);
+
+#ifdef CONFIG_TOMTOM_FDT
+struct factorydata_buffer_info_t fdt_buffer_info;
+EXPORT_SYMBOL(fdt_buffer_info);
+
+extern struct platform_device tomtom_device_libfdt;
+extern struct resource tomtom_libfdt_resource[];
+#endif
 
 
 #ifdef MULTI_CPU
@@ -228,18 +243,20 @@ int cpu_architecture(void)
 
 	return cpu_arch;
 }
+EXPORT_SYMBOL(cpu_architecture);
 
 static void __init cacheid_init(void)
 {
 	unsigned int cachetype = read_cpuid_cachetype();
 	unsigned int arch = cpu_architecture();
 
-	if (arch >= CPU_ARCH_ARMv7) {
-		cacheid = CACHEID_VIPT_NONALIASING;
-		if ((cachetype & (3 << 14)) == 1 << 14)
-			cacheid |= CACHEID_ASID_TAGGED;
-	} else if (arch >= CPU_ARCH_ARMv6) {
-		if (cachetype & (1 << 23))
+	if (arch >= CPU_ARCH_ARMv6) {
+		if ((cachetype & (7 << 29)) == 4 << 29) {
+			/* ARMv7 register format */
+			cacheid = CACHEID_VIPT_NONALIASING;
+			if ((cachetype & (3 << 14)) == 1 << 14)
+				cacheid |= CACHEID_ASID_TAGGED;
+		} else if (cachetype & (1 << 23))
 			cacheid = CACHEID_VIPT_ALIASING;
 		else
 			cacheid = CACHEID_VIPT_NONALIASING;
@@ -326,25 +343,38 @@ void cpu_init(void)
 	}
 
 	/*
+	 * Define the placement constraint for the inline asm directive below.
+	 * In Thumb-2, msr with an immediate value is not allowed.
+	 */
+#ifdef CONFIG_THUMB2_KERNEL
+#define PLC	"r"
+#else
+#define PLC	"I"
+#endif
+
+	/*
 	 * setup stacks for re-entrant exception handlers
 	 */
 	__asm__ (
 	"msr	cpsr_c, %1\n\t"
-	"add	sp, %0, %2\n\t"
+	"add	r14, %0, %2\n\t"
+	"mov	sp, r14\n\t"
 	"msr	cpsr_c, %3\n\t"
-	"add	sp, %0, %4\n\t"
+	"add	r14, %0, %4\n\t"
+	"mov	sp, r14\n\t"
 	"msr	cpsr_c, %5\n\t"
-	"add	sp, %0, %6\n\t"
+	"add	r14, %0, %6\n\t"
+	"mov	sp, r14\n\t"
 	"msr	cpsr_c, %7"
 	    :
 	    : "r" (stk),
-	      "I" (PSR_F_BIT | PSR_I_BIT | IRQ_MODE),
+	      PLC (PSR_F_BIT | PSR_I_BIT | IRQ_MODE),
 	      "I" (offsetof(struct stack, irq[0])),
-	      "I" (PSR_F_BIT | PSR_I_BIT | ABT_MODE),
+	      PLC (PSR_F_BIT | PSR_I_BIT | ABT_MODE),
 	      "I" (offsetof(struct stack, abt[0])),
-	      "I" (PSR_F_BIT | PSR_I_BIT | UND_MODE),
+	      PLC (PSR_F_BIT | PSR_I_BIT | UND_MODE),
 	      "I" (offsetof(struct stack, und[0])),
-	      "I" (PSR_F_BIT | PSR_I_BIT | SVC_MODE)
+	      PLC (PSR_F_BIT | PSR_I_BIT | SVC_MODE)
 	    : "r14");
 }
 
@@ -613,6 +643,20 @@ static int __init parse_tag_cmdline(const struct tag *tag)
 
 __tagtable(ATAG_CMDLINE, parse_tag_cmdline);
 
+#ifdef CONFIG_TOMTOM_FDT
+static int __init parse_tag_fdtdata(const struct tag *tag)
+{
+	fdt_buffer_info.address = tag->u.factorydata.address;
+	fdt_buffer_info.size = tag->u.factorydata.size;
+
+	return 0;
+}
+
+__tagtable(ATAG_FACTORYDATA, parse_tag_fdtdata);
+#endif /* CONFIG_TOMTOM_FDT */
+
+
+
 /*
  * Scan the tag table for this tag, and call its parse function.
  * The tag table is built by the linker from all the __tagtable
@@ -673,11 +717,35 @@ static int __init customize_machine(void)
 }
 arch_initcall(customize_machine);
 
+
+#if defined(CONFIG_TOMTOM_FDT)
+void __init setup_factory_data(void)
+{
+	if ((fdt_buffer_info.address != 0) && (fdt_buffer_info.size != 0)) {
+		int ret = reserve_bootmem(fdt_buffer_info.address, 
+									fdt_buffer_info.size, 
+									BOOTMEM_EXCLUSIVE);
+		if (0 == ret)
+			printk("factory data: reserve_bootmem successful\n");
+		else
+			printk("factory data: reserve_bootmem FAILED !!! [ret= %d]\n", ret);
+	}
+	fdt_buffer_info.address = (u32)phys_to_virt(fdt_buffer_info.address);
+
+	tomtom_libfdt_resource[0].start = fdt_buffer_info.address;
+	tomtom_libfdt_resource[0].end = tomtom_libfdt_resource[0].start +
+										fdt_buffer_info.size;
+}
+#endif /* CONFIG_TOMTOM_FDT */
+
+
 void __init setup_arch(char **cmdline_p)
 {
 	struct tag *tags = (struct tag *)&init_tags;
 	struct machine_desc *mdesc;
 	char *from = default_command_line;
+
+	unwind_init();
 
 	setup_processor();
 	mdesc = setup_machine(machine_arch_type);
@@ -734,6 +802,11 @@ void __init setup_arch(char **cmdline_p)
 	system_timer = mdesc->timer;
 	init_machine = mdesc->init_machine;
 
+
+#if defined(CONFIG_TOMTOM_FDT)
+	setup_factory_data();
+#endif /* CONFIG_TOMTOM_FDT */
+
 #ifdef CONFIG_VT
 #if defined(CONFIG_VGA_CONSOLE)
 	conswitchp = &vga_con;
@@ -772,6 +845,10 @@ static const char *hwcap_str[] = {
 	"java",
 	"iwmmxt",
 	"crunch",
+	"thumbee",
+	"neon",
+	"vfpv3",
+	"vfpv3d16",
 	NULL
 };
 

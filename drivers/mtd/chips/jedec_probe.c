@@ -69,6 +69,7 @@
 #define AT49BV16XT	0x00C2
 #define AT49BV32X	0x00C8
 #define AT49BV32XT	0x00C9
+#define AT49LW080	0x00E1
 
 /* Eon */
 #define EN29SL800BB	0x226B
@@ -165,6 +166,7 @@
 #define SST39LF040	0x00D7
 #define SST39SF010A	0x00B5
 #define SST39SF020A	0x00B6
+#define SST39WF800	0x273F
 #define SST49LF004B	0x0060
 #define SST49LF040B	0x0050
 #define SST49LF008A	0x005a
@@ -643,6 +645,18 @@ static const struct amd_flash_info jedec_table[] = {
 			ERASEINFO(0x10000,63),
 			ERASEINFO(0x02000,8)
 		}
+	}, {
+                .mfr_id         = MANUFACTURER_ATMEL,
+                .dev_id         = AT49LW080,
+                .name           = "Atmel AT49LW080",
+		.devtypes	= CFI_DEVICETYPE_X8,
+                .uaddr          =  MTD_UADDR_UNNECESSARY,    /* x8 */
+                .dev_size       = SIZE_1MiB,
+                .cmd_set        = P_ID_INTEL_EXT,
+                .nr_regions	= 1,
+                .regions        = {
+                        ERASEINFO(0x10000,16),
+                }
 	}, {
 		.mfr_id		= MANUFACTURER_EON,
 		.dev_id		= EN29SL800BT,
@@ -1389,6 +1403,18 @@ static const struct amd_flash_info jedec_table[] = {
 		.nr_regions	= 1,
 		.regions	= {
 			ERASEINFO(0x01000,64),
+		}
+	}, {
+		.mfr_id		= MANUFACTURER_SST,
+		.dev_id		= SST39WF800,
+		.name		= "SST 39WF800",
+		.devtypes	= CFI_DEVICETYPE_X16|CFI_DEVICETYPE_X8,
+		.uaddr		= MTD_UADDR_0x5555_0x2AAA,
+		.dev_size	= SIZE_1MiB,
+		.cmd_set	= P_ID_AMD_STD,
+		.nr_regions	= 1,
+		.regions	= {
+			ERASEINFO(0x01000,256),
 		}
 	}, {
 		.mfr_id		= MANUFACTURER_SST,

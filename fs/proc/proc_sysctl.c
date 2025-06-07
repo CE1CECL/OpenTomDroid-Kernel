@@ -226,6 +226,19 @@ static int scan(struct ctl_table_header *head, ctl_table *table,
 		if (!table->procname)
 			continue;
 
+#ifdef CONFIG_INTERPEAK
+		/* Check if table represents a VR bound directory. */
+		/* Then verify that it is bound to the callers VR. */
+
+		if (table->child != NULL && table->extra2 != NULL) {
+            unsigned short *vr = (unsigned short*)table->extra2;
+
+		  if (*vr != current->vr)
+		    continue;
+		}
+#endif /* CONFIG_INTERPEAK */
+
+
 		if (*pos < file->f_pos)
 			continue;
 
@@ -281,6 +294,7 @@ static int proc_sys_readdir(struct file *filp, void *dirent, filldir_t filldir)
 	for (h = sysctl_head_next(NULL); h; h = sysctl_head_next(h)) {
 		if (h->attached_to != table)
 			continue;
+
 		ret = scan(h, h->attached_by, &pos, filp, dirent, filldir);
 		if (ret) {
 			sysctl_head_finish(h);

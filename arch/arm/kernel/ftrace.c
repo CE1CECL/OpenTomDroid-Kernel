@@ -82,22 +82,46 @@ int ftrace_modify_code(unsigned long pc, unsigned char *old_code,
 	return err;
 }
 
+int ftrace_make_nop(struct module *mod,
+		    struct dyn_ftrace *rec, unsigned long addr)
+{
+	unsigned char *new, *old;
+	unsigned long ip = rec->ip;
+
+	old = ftrace_call_replace(ip, addr);
+	new = ftrace_nop_replace();
+
+	return ftrace_modify_code(rec->ip, old, new);
+}
+
+int ftrace_make_call(struct dyn_ftrace *rec, unsigned long addr)
+{
+	unsigned char *new, *old;
+	unsigned long ip = rec->ip;
+
+	old = ftrace_nop_replace();
+	new = ftrace_call_replace(ip, addr);
+
+	return ftrace_modify_code(rec->ip, old, new);
+}
+
 int ftrace_update_ftrace_func(ftrace_func_t func)
 {
+	unsigned long ip = (unsigned long)(&ftrace_call);
+	unsigned char old[MCOUNT_INSN_SIZE], *new;
 	int ret;
-	unsigned long pc, old;
-	unsigned char *new;
 
-	pc = (unsigned long)&ftrace_call;
-	memcpy(&old, &ftrace_call, MCOUNT_INSN_SIZE);
-	new = ftrace_call_replace(pc, (unsigned long)func);
-	ret = ftrace_modify_code(pc, (unsigned char *)&old, new);
+	memcpy(old, &ftrace_call, sizeof(old));
+	new = ftrace_call_replace(ip, (unsigned long)func);
+	ret = ftrace_modify_code(ip, (unsigned char *)&old, new);
+
 	return ret;
 }
 
 /* run from kstop_machine */
 int __init ftrace_dyn_arch_init(void *data)
 {
-	ftrace_mcount_set(data);
+	/* The return code is retured via data */
+	*(unsigned long *)data = 0;
 	return 0;
 }

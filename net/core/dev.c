@@ -127,6 +127,7 @@
 #include <linux/in.h>
 #include <linux/jhash.h>
 #include <linux/random.h>
+#include <trace/net.h>
 
 #include "net-sysfs.h"
 
@@ -597,8 +598,12 @@ struct net_device *__dev_get_by_name(struct net *net, const char *name)
 	hlist_for_each(p, dev_name_hash(net, name)) {
 		struct net_device *dev
 			= hlist_entry(p, struct net_device, name_hlist);
-		if (!strncmp(dev->name, name, IFNAMSIZ))
+		if (!strncmp(dev->name, name, IFNAMSIZ)) {
+#ifdef CONFIG_INTERPEAK
+			if (dev->vr == current->vr)
+#endif
 			return dev;
+	}
 	}
 	return NULL;
 }
@@ -924,10 +929,16 @@ int dev_change_name(struct net_device *dev, const char *newname)
 		strlcpy(dev->name, newname, IFNAMSIZ);
 
 rollback:
-	ret = device_rename(&dev->dev, dev->name);
-	if (ret) {
-		memcpy(dev->name, oldname, IFNAMSIZ);
-		return ret;
+
+	/* For now only devices in the initial network namespace
+	 * are in sysfs.
+	 */
+	if (net == &init_net) {
+		ret = device_rename(&dev->dev, dev->name);
+		if (ret) {
+			memcpy(dev->name, oldname, IFNAMSIZ);
+			return ret;
+		}
 	}
 
 	write_lock_bh(&dev_base_lock);
@@ -1328,8 +1339,11 @@ static inline void net_timestamp(struct sk_buff *skb)
  *	Support routine. Sends outgoing frames to any network
  *	taps currently in use.
  */
-
+#ifdef CONFIG_INTERPEAK
+void dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev)
+#else
 static void dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev)
+#endif
 {
 	struct packet_type *ptype;
 
@@ -1369,6 +1383,10 @@ static void dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev)
 	}
 	rcu_read_unlock();
 }
+#ifdef CONFIG_INTERPEAK
+EXPORT_SYMBOL(dev_queue_xmit_nit);
+#endif
+
 
 
 static inline void __netif_reschedule(struct Qdisc *q)
@@ -1821,6 +1839,7 @@ int dev_queue_xmit(struct sk_buff *skb)
 	}
 
 gso:
+	trace_net_dev_xmit(skb);
 	/* Disable soft irqs for various locks below. Also
 	 * stops preemption for RCU.
 	 */
@@ -2044,6 +2063,39 @@ static inline int deliver_skb(struct sk_buff *skb,
 	return pt_prev->func(skb, skb->dev, pt_prev, orig_dev);
 }
 
+#ifdef CONFIG_INTERPEAK
+void dev_ptype_pcap(struct sk_buff *skb, struct net_device *dev)
+{
+	struct packet_type *ptype;
+	__be16 type;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(ptype, &ptype_all, list) {
+		if (!ptype->dev || ptype->dev == skb->dev) {
+			if (skb->pkt_type != PACKET_OUTGOING ||
+			    (ptype->af_packet_priv == NULL ||
+			     (struct sock *)ptype->af_packet_priv !=
+			     skb->sk)) {
+				deliver_skb(skb, ptype, skb->dev);
+			}
+		}
+	}
+
+	if (skb->pkt_type != PACKET_OUTGOING) {
+		type = skb->protocol;
+		list_for_each_entry_rcu(ptype,
+					&ptype_base[ntohs(type)&15], list) {
+			if (!ptype->dev || ptype->dev == skb->dev) {
+				deliver_skb(skb, ptype, skb->dev);
+			}
+		}
+	}
+	rcu_read_unlock();
+}
+EXPORT_SYMBOL(dev_ptype_pcap);
+#endif
+
+
 #if defined(CONFIG_BRIDGE) || defined (CONFIG_BRIDGE_MODULE)
 /* These hooks defined here for ATM */
 struct net_bridge;
@@ -2242,6 +2294,7 @@ int netif_receive_skb(struct sk_buff *skb)
 
 	__get_cpu_var(netdev_rx_stat).total++;
 
+	trace_net_dev_receive(skb);
 	skb_reset_network_header(skb);
 	skb_reset_transport_header(skb);
 	skb->mac_len = skb->network_header - skb->mac_header;
@@ -2616,6 +2669,12 @@ void dev_seq_stop(struct seq_file *seq, void *v)
 static void dev_seq_printf_stats(struct seq_file *seq, struct net_device *dev)
 {
 	struct net_device_stats *stats = dev->get_stats(dev);
+
+#ifdef CONFIG_INTERPEAK
+  /* Only show interfaces that are in callers VR. */
+	if (dev->vr != current->vr)
+		return;
+#endif
 
 	seq_printf(seq, "%6s:%8lu %7lu %4lu %4lu %4lu %5lu %10lu %9lu "
 		   "%8lu %7lu %4lu %4lu %4lu %5lu %7lu %10lu\n",
@@ -3427,6 +3486,9 @@ int dev_change_flags(struct net_device *dev, unsigned flags)
 		int inc = (flags & IFF_PROMISC) ? +1 : -1;
 		dev->gflags ^= IFF_PROMISC;
 		dev_set_promiscuity(dev, inc);
+#ifdef CONFIG_INTERPEAK
+		raw_notifier_call_chain(&netdev_chain, NETDEV_CHANGEFLAG, dev);
+#endif
 	}
 
 	/* NOTE: order of synchronization of IFF_PROMISC and IFF_ALLMULTI
@@ -3852,6 +3914,9 @@ int dev_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 			return -EINVAL;
 	}
 }
+#ifdef CONFIG_INTERPEAK
+EXPORT_SYMBOL(dev_ioctl);
+#endif
 
 
 /**
@@ -4054,7 +4119,11 @@ int register_netdevice(struct net_device *dev)
 	hlist_for_each(p, head) {
 		struct net_device *d
 			= hlist_entry(p, struct net_device, name_hlist);
-		if (!strncmp(d->name, dev->name, IFNAMSIZ)) {
+		if (!strncmp(d->name, dev->name, IFNAMSIZ)
+#ifdef CONFIG_INTERPEAK
+		    && (d->vr == dev->vr)
+#endif
+		    ) {
 			ret = -EEXIST;
 			goto err_uninit;
 		}
@@ -4463,6 +4532,15 @@ int dev_change_net_namespace(struct net_device *dev, struct net *net, const char
 	if (dev->features & NETIF_F_NETNS_LOCAL)
 		goto out;
 
+#ifdef CONFIG_SYSFS
+	/* Don't allow real devices to be moved when sysfs
+	 * is enabled.
+	 */
+	err = -EINVAL;
+	if (dev->dev.parent)
+		goto out;
+#endif
+
 	/* Ensure the device has been registrered */
 	err = -EINVAL;
 	if (dev->reg_state != NETREG_REGISTERED)
@@ -4520,6 +4598,8 @@ int dev_change_net_namespace(struct net_device *dev, struct net *net, const char
 	 */
 	dev_addr_discard(dev);
 
+	netdev_unregister_kobject(dev);
+
 	/* Actually switch the network namespace */
 	dev_net_set(dev, net);
 
@@ -4536,7 +4616,6 @@ int dev_change_net_namespace(struct net_device *dev, struct net *net, const char
 	}
 
 	/* Fixup kobjects */
-	netdev_unregister_kobject(dev);
 	err = netdev_register_kobject(dev);
 	WARN_ON(err);
 

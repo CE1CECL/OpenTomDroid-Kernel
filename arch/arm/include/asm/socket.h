@@ -54,4 +54,18 @@
 
 #define SO_MARK			36
 
+/* CONFIG INTERPEAK >>>>*/
+/***** SOL_SOCKET socket options supported only by IPNET: *****/
+ /* int; Set virtual router */
+#define SO_VR                0x1020
+
+/* int; Set permanent vr for calling process */
+#define SO_PERMVR            0x1030
+
+/* int; number of seconds an connection (with keep-alive
+ * active) must be idle before the first probe is sent */
+#define SO_PROBEDELAY        0x1021
+
+/* <<<<CONFIG INTERPEAK */
+
 #endif /* _ASM_SOCKET_H */

@@ -26,7 +26,11 @@ static LIST_HEAD(mtd_partitions);
 struct mtd_part {
 	struct mtd_info mtd;
 	struct mtd_info *master;
+#ifdef CONFIG_MTD_LFS_SUPPORT
+  	loff_t 	offset;
+#else
 	u_int32_t offset;
+#endif  
 	int index;
 	struct list_head list;
 	int registered;
@@ -501,7 +505,11 @@ int add_mtd_partitions(struct mtd_info *master,
 		       int nbparts)
 {
 	struct mtd_part *slave;
+#ifdef CONFIG_MTD_LFS_SUPPORT
+        loff_t cur_offset = 0;
+#else
 	u_int32_t cur_offset = 0;
+#endif        
 	int i;
 
 	printk(KERN_NOTICE "Creating %d MTD partitions on \"%s\":\n", nbparts, master->name);

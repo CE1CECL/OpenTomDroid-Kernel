@@ -1128,6 +1128,7 @@ static int verify_not_halted(struct usbtest_dev *tdev, int ep, struct urb *urb)
 				ep, retval);
 		return retval;
 	}
+	status = le16_to_cpu (status);
 	if (status != 0) {
 		ERROR(tdev, "ep %02x bogus status: %04x != 0\n", ep, status);
 		return -EINVAL;

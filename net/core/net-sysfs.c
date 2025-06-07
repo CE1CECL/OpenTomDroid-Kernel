@@ -476,8 +476,17 @@ void netdev_unregister_kobject(struct net_device * net)
 	struct device *dev = &(net->dev);
 
 	kobject_get(&dev->kobj);
+
+	if (dev_net(net) != &init_net)
+		return;
+
 	device_del(dev);
 }
+#ifdef CONFIG_INTERPEAK
+EXPORT_SYMBOL(netdev_unregister_kobject);
+#endif
+
+
 
 /* Create sysfs entries for network device. */
 int netdev_register_kobject(struct net_device *net)
@@ -490,6 +499,12 @@ int netdev_register_kobject(struct net_device *net)
 	dev->groups = groups;
 
 	BUILD_BUG_ON(BUS_ID_SIZE < IFNAMSIZ);
+
+#ifdef CONFIG_INTERPEAK
+	if (net->vr)
+		snprintf(dev->bus_id, BUS_ID_SIZE, "%s#%d", net->name, net->vr);
+	else
+#endif
 	strlcpy(dev->bus_id, net->name, BUS_ID_SIZE);
 
 #ifdef CONFIG_SYSFS
@@ -501,8 +516,16 @@ int netdev_register_kobject(struct net_device *net)
 #endif
 #endif /* CONFIG_SYSFS */
 
+	if (dev_net(net) != &init_net)
+		return 0;
+
 	return device_add(dev);
 }
+#ifdef CONFIG_INTERPEAK
+EXPORT_SYMBOL(netdev_register_kobject);
+#endif
+
+
 
 int netdev_class_create_file(struct class_attribute *class_attr)
 {

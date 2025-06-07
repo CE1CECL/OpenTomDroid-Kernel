@@ -18,6 +18,7 @@
 #include <linux/seq_file.h>
 #include <linux/pagemap.h>
 #include <linux/mpage.h>
+#include <linux/fiemap.h>
 #include <linux/buffer_head.h>
 #include <linux/exportfs.h>
 #include <linux/mount.h>
@@ -118,6 +119,72 @@ static int fat_get_block(struct inode *inode, sector_t iblock,
 		return err;
 	bh_result->b_size = max_blocks << sb->s_blocksize_bits;
 	return 0;
+}
+
+static int fat_get_extent_no_create(struct inode *inode, sector_t iblock,
+				    struct buffer_head *bh_result, int create)
+{
+	struct super_block *sb = inode->i_sb;
+	struct msdos_sb_info *sbi = MSDOS_SB(sb);
+	const unsigned long max_blocks = bh_result->b_size >> inode->i_blkbits;
+	unsigned long extent_blocks = 0;
+	sector_t phys = 0;
+
+	/* try to bmap() as many contiguous clusters as possible starting
+	   at iblock */
+
+	do {
+		unsigned long mapped_blocks;
+		sector_t s;
+		int err;
+
+		err = fat_bmap(inode, iblock, &s, &mapped_blocks, 0);
+		if (err)
+			return err;
+
+		/* first iteration? */
+		if (!phys)
+			phys = s;
+
+		/* EOF? */
+		if (!s)
+			break;
+
+		/* still contiguous? */
+		if (phys + extent_blocks != s)
+			break;
+
+		extent_blocks += mapped_blocks;
+
+		if (extent_blocks >= max_blocks) {
+			/* max number of blocks reached? */
+			if (extent_blocks > max_blocks)
+				extent_blocks = max_blocks;
+
+			break;
+		}
+
+		/* bail if we did not get a full cluster */
+		if (mapped_blocks < sbi->sec_per_clus)
+			break;
+
+		iblock += sbi->sec_per_clus;
+
+	} while (1);
+
+	if (phys) {
+		map_bh(bh_result, sb, phys);
+		bh_result->b_size = (extent_blocks << sb->s_blocksize_bits);
+	}
+
+	return 0;
+}
+
+int fat_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
+	       u64 start, u64 len)
+{
+	return generic_block_fiemap(inode, fieinfo, start, len,
+			      fat_get_extent_no_create);
 }
 
 static int fat_writepage(struct page *page, struct writeback_control *wbc)

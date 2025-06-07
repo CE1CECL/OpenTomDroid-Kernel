@@ -19,7 +19,11 @@ jiffies = jiffies_64 + 4;
 SECTIONS
 {
 #ifdef CONFIG_XIP_KERNEL
+#ifdef CONFIG_XIP_UBOOT_HDR
+	. = XIP_VIRT_ADDR(CONFIG_XIP_PHYS_ADDR + 0x40); /* 0x40 is uboot header size */
+#else
 	. = XIP_VIRT_ADDR(CONFIG_XIP_PHYS_ADDR);
+#endif
 #else
 	. = PAGE_OFFSET + TEXT_OFFSET;
 #endif
@@ -80,6 +84,8 @@ SECTIONS
 		EXIT_TEXT
 		EXIT_DATA
 		*(.exitcall.exit)
+		*(.ARM.exidx.exit.text)
+		*(.ARM.extab.exit.text)
 #ifndef CONFIG_MMU
 		*(.fixup)
 		*(__ex_table)
@@ -109,6 +115,23 @@ SECTIONS
 	RODATA
 
 	_etext = .;			/* End of text and rodata section */
+
+#ifdef CONFIG_ARM_UNWIND
+	/*
+	 * Stack unwinding tables
+	 */
+	. = ALIGN(8);
+	.ARM.unwind_idx : {
+		__start_unwind_idx = .;
+		*(.ARM.exidx*)
+		__stop_unwind_idx = .;
+	}
+	.ARM.unwind_tab : {
+		__start_unwind_tab = .;
+		*(.ARM.extab*)
+		__stop_unwind_tab = .;
+	}
+#endif
 
 #ifdef CONFIG_XIP_KERNEL
 	__data_loc = ALIGN(4);		/* location in binary */
@@ -164,6 +187,7 @@ SECTIONS
 		CONSTRUCTORS
 
 		_edata = .;
+		. = . + 1;
 	}
 	_edata_loc = __data_loc + SIZEOF(.data);
 

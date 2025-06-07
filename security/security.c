@@ -124,6 +124,7 @@ int register_security(struct security_operations *ops)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(register_security);
 
 /* Security operations */
 
@@ -877,6 +878,15 @@ void security_release_secctx(char *secdata, u32 seclen)
 	security_ops->release_secctx(secdata, seclen);
 }
 EXPORT_SYMBOL(security_release_secctx);
+
+int security_task_lookup(struct task_struct *p)
+{
+	if (security_ops && security_ops->task_lookup)
+		return security_ops->task_lookup(p);
+
+	return 0;
+}
+EXPORT_SYMBOL(security_task_lookup);
 
 #ifdef CONFIG_SECURITY_NETWORK
 

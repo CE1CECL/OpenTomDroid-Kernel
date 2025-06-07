@@ -75,6 +75,9 @@ static inline int hypervisor_init(void) { return 0; }
 #endif
 extern int platform_bus_init(void);
 extern int system_bus_init(void);
+#ifdef CONFIG_PMU_DEVICE
+extern int pmu_init(void);
+#endif
 extern int cpu_dev_init(void);
 
 extern int bus_add_device(struct device *dev);

@@ -18,6 +18,7 @@ struct mmc_cid {
 	unsigned int		serial;
 	unsigned short		oemid;
 	unsigned short		year;
+	unsigned char		prv;
 	unsigned char		hwrev;
 	unsigned char		fwrev;
 	unsigned char		month;

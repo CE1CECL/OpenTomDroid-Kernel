@@ -103,6 +103,14 @@ config SECURITY_ROOTPLUG
 	  
 	  If you are unsure how to answer this question, answer N.
 
+config SECURITY_LOWMEM
+	tristate "Low memory watermark support"
+	depends on SECURITY
+	help
+	  Implements low memory watermark support
+
+	  If you are unsure how to answer this question, answer N.
+
 config SECURITY_DEFAULT_MMAP_MIN_ADDR
         int "Low address space to protect from user allocation"
         depends on SECURITY
@@ -125,6 +133,28 @@ config SECURITY_DEFAULT_MMAP_MIN_ADDR
 
 source security/selinux/Kconfig
 source security/smack/Kconfig
+
+config SECURITY_BSDJAIL
+	tristate "BSD Jail LSM"
+	depends on SECURITY
+	select SECURITY_NETWORK
+	help
+	  Provides BSD Jail compartmentalization functionality.
+	  See Documentation/bsdjail.txt for more information and
+	  usage instructions.
+	  
+	  If you are unsure how to answer this question, answer N.
+
+config SECURITY_BSDJAIL_USE_NAMESPACE
+	bool "Copying name space"
+	depends on SECURITY_BSDJAIL
+	default y
+	help
+	  This could be useful, so that future mounts outside the jail
+	  don't affect the jail.  But it's not necessary, and requires
+	  exporting copy_namespace from fs/namespace.c, Actually, it
+	  would also be useful for truly hiding information about mounts
+	  which do not exist in this jail.
 
 endmenu
 

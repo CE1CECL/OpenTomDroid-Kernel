@@ -293,7 +293,7 @@ static void __exit cryptomgr_exit(void)
 	testmgr_exit();
 }
 
-subsys_initcall(cryptomgr_init);
+late_initcall(cryptomgr_init);
 module_exit(cryptomgr_exit);
 
 MODULE_LICENSE("GPL");

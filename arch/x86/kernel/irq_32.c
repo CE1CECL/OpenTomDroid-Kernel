@@ -15,6 +15,7 @@
 #include <linux/notifier.h>
 #include <linux/cpu.h>
 #include <linux/delay.h>
+#include <linux/pps.h>
 
 #include <asm/apic.h>
 #include <asm/uaccess.h>
@@ -24,6 +25,11 @@ EXPORT_PER_CPU_SYMBOL(irq_stat);
 
 DEFINE_PER_CPU(struct pt_regs *, irq_regs);
 EXPORT_PER_CPU_SYMBOL(irq_regs);
+
+#ifdef CONFIG_PPS_IRQ_EVENTS
+struct timespec pps_irq_ts[NR_IRQS];
+EXPORT_SYMBOL(pps_irq_ts);
+#endif
 
 #ifdef CONFIG_DEBUG_STACKOVERFLOW
 /* Debugging check for stack overflow: is there less than 1KB free? */
@@ -204,7 +210,12 @@ unsigned int do_IRQ(struct pt_regs *regs)
 	unsigned vector = ~regs->orig_ax;
 	struct irq_desc *desc;
 	unsigned irq;
+#ifdef CONFIG_PPS_IRQ_EVENTS
+	struct timespec ts;
 
+	/* Get IRQ timestamps as soon as possible for the PPS layer */
+	getnstimeofday(&ts);
+#endif
 
 	old_regs = set_irq_regs(regs);
 	irq_enter();
@@ -218,6 +229,11 @@ unsigned int do_IRQ(struct pt_regs *regs)
 					__func__, irq, vector, smp_processor_id());
 		BUG();
 	}
+
+#ifdef CONFIG_PPS_IRQ_EVENTS
+	/* Then, after sanity check, store the IRQ timestamp */
+	pps_irq_ts[irq] = ts;
+#endif
 
 	if (!execute_on_irq_stack(overflow, desc, irq)) {
 		if (unlikely(overflow))

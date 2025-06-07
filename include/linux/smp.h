@@ -133,7 +133,7 @@ static inline int up_smp_call_function(void (*func)(void *), void *info)
 		local_irq_enable();		\
 		0;				\
 	})
-static inline void smp_send_reschedule(int cpu) { }
+static inline void smp_send_reschedule(int cpu) {(void)cpu;}
 #define num_booting_cpus()			1
 #define smp_prepare_boot_cpu()			do {} while (0)
 #define smp_call_function_single(cpuid, func, info, wait) \

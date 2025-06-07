@@ -35,6 +35,7 @@ union debug_insn {
 
 struct debug_entry {
 	u32			address;
+	int                     is_thumb;
 	union debug_insn	insn;
 };
 
@@ -71,6 +72,7 @@ struct thread_struct {
 		regs->ARM_cpsr = USR26_MODE;				\
 	if (elf_hwcap & HWCAP_THUMB && pc & 1)				\
 		regs->ARM_cpsr |= PSR_T_BIT;				\
+	regs->ARM_cpsr |= PSR_ENDSTATE;					\
 	regs->ARM_pc = pc & ~1;		/* pc */			\
 	regs->ARM_sp = sp;		/* sp */			\
 	regs->ARM_r2 = stack[2];	/* r2 (envp) */			\
@@ -86,7 +88,13 @@ struct task_struct;
 extern void release_thread(struct task_struct *);
 
 /* Prepare to copy thread state - unlazy all lazy status */
-#define prepare_to_copy(tsk)	do { } while (0)
+extern void prepare_to_copy(struct task_struct *);
+#ifdef CONFIG_VFP
+extern void vfp_task_disable(struct task_struct *tsk);
+struct thread_info;
+extern void vfp_task_copy(struct thread_info *, void *);
+extern void vfp_task_restore(struct thread_info *, void *);
+#endif
 
 unsigned long get_wchan(struct task_struct *p);
 

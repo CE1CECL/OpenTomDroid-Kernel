@@ -59,8 +59,14 @@ static void ack_state(void)
 		set_state(state + 1);
 }
 
-/* This is the actual function which stops the CPU. It runs
- * in the context of a dedicated stopmachine workqueue. */
+#ifdef CONFIG_CPUISOL_STOPMACHINE
+#define cpu_unusable(cpu) cpu_isolated(cpu)
+#else
+#define cpu_unusable(cpu) (0)
+#endif
+
+/* This is the actual thread which stops the CPU.  It exits by itself rather
+ * than waiting for kthread_stop(), because it's easier for hotplug CPU. */
 static void stop_cpu(struct work_struct *unused)
 {
 	enum stopmachine_state curstate = STOPMACHINE_NONE;

@@ -81,7 +81,11 @@
 #define I2C_DRIVERID_CS4270	94	/* Cirrus Logic 4270 audio codec */
 #define I2C_DRIVERID_M52790 	95      /* Mitsubishi M52790SP/FP AV switch */
 #define I2C_DRIVERID_CS5345	96	/* cs5345 audio processor	*/
+#define I2C_DRIVERID_S5K3BA	501	/* Samsung S5K3BA CMOS Image Sensor */
+#define I2C_DRIVERID_S5K4BA	502	/* Samsung S5K4BA CMOS Image Sensor */
+#define I2C_DRIVERID_S5K6AA	503	/* Samsung S5K6AA CMOS Image Sensor */
 
+#define I2C_DRIVERID_PSOC_CTSIC 904
 #define I2C_DRIVERID_OV7670 1048	/* Omnivision 7670 camera */
 
 /*
@@ -110,6 +114,11 @@
 #define I2C_HW_B_INTELFB	0x010021 /* intel framebuffer driver */
 #define I2C_HW_B_CX23885	0x010022 /* conexant 23885 based tv cards (bus1) */
 #define I2C_HW_B_AU0828		0x010023 /* auvitek au0828 usb bridge */
+
+#define I2C_HW_B_BCM1160   0x01002A    /* BCM1160 chipset                      */
+#define I2C_HW_B_BCM1161   0x01002B    /* BCM1161 chipset                      */
+#define I2C_HW_B_BCM4760   0x01002C	/* BCM4760 chipset (i2c0)	*/
+#define I2C_HW_B_BCM4760_1 0x01002D	/* BCM4760 chipset (i2c1)	*/
 
 /* --- PCF 8584 based algorithms					*/
 #define I2C_HW_P_ELEK		0x020002 /* Elektor ISA Bus inteface card */

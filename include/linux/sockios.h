@@ -29,6 +29,55 @@
 #define SIOCDELRT	0x890C		/* delete routing table entry	*/
 #define SIOCRTMSG	0x890D		/* call to routing system	*/
 
+/*  CONFIG INTERPEAK >>> */
+
+/* Add virtual router (unsigned long) */
+#define SIOCADDVR             0x8986
+
+/* Delete virtual router (unsigned long) */
+#define SIOCDELVR             0x8987
+
+ /* Add a table to a virtual router (struct sioc_route_table) */
+#define SIOCADDTABLE      0x00d00001
+
+ /* Add a route table to a virtual router (struct sioc_route_table) */
+#define SIOCADDROUTETAB   0x00d00001
+
+ /* Delete a table from a virtual router (struct sioc_route_table) */
+#define SIOCDELTABLE      0x00d00002
+
+ /* Delete a route table to a virtual router (struct sioc_route_table) */
+#define SIOCDELROUTETAB   0x00d00002
+
+ /* Get/create a route table by name (struct sioc_route_table) */
+#define SIOCGETROUTETAB   0x00d00003
+
+ /* Set a name for a route table. (struct sioc_route_table) */
+#define SIOCSROUTETABNAME 0x00d00004
+
+ /* Mapps a route table name to VR and table ID (struct sioc_route_table) */
+#define SIOCGROUTETABNAME 0x00d00005
+
+ /* Get the virtual router index for an interface (struct ifreq) */
+#define SIOCGIFVR         0x00300001
+
+ /* Set an interface to a specific virtual router (struct ifreq) */
+#define SIOCSIFVR         0x00300002
+
+ /* Get a policy routing rule */
+#define SIOCGPRRULE       0x00f00001
+
+ /* Set a policy routing rule */
+#define SIOCSPRRULE       0x00f00002
+
+ /* Delete a policy routing rule */
+#define SIOCDPRRULE       0x00f00003
+
+ /* Enumerate policy routing rules */
+#define SIOCEPRRULE       0x00f00004
+
+/* <<< CONFIG INTERPEAK */
+
 /* Socket configuration controls. */
 #define SIOCGIFNAME	0x8910		/* get iface name		*/
 #define SIOCSIFLINK	0x8911		/* set iface channel		*/

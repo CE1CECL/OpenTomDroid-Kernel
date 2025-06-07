@@ -134,3 +134,13 @@ config HW_RANDOM_VIRTIO
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called virtio-rng.  If unsure, say N.
+
+config HW_RANDOM_BCM476X
+	tristate "BCM476X Random Number Generator support"
+	depends on HW_RANDOM && PLAT_BCM476X
+	---help---
+	  This driver provides kernel-side support for the Random Number
+	  Generator hardware found on BCM476X.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called bcm476x_rng.  If unsure, say N.

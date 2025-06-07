@@ -514,7 +514,7 @@ static void mmc_power_up(struct mmc_host *host)
 	 * This delay should be sufficient to allow the power supply
 	 * to reach the minimum voltage.
 	 */
-	mmc_delay(2);
+	mmc_delay(250);
 
 	host->ios.clock = host->f_min;
 	host->ios.power_mode = MMC_POWER_ON;
@@ -726,7 +726,10 @@ out:
 void mmc_start_host(struct mmc_host *host)
 {
 	mmc_power_off(host);
-	mmc_detect_change(host, 0);
+	if (host->caps & MMC_CAP_BOOT_ONTHEFLY)
+		mmc_rescan(&host->detect.work);
+	else
+		mmc_detect_change(host, 0);
 }
 
 void mmc_stop_host(struct mmc_host *host)

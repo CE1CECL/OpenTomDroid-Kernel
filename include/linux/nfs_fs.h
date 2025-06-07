@@ -536,7 +536,7 @@ static inline void nfs3_forget_cached_acls(struct inode *inode)
  * linux/fs/mount_clnt.c
  */
 extern int  nfs_mount(struct sockaddr *, size_t, char *, char *,
-		      int, int, struct nfs_fh *);
+		      int, int, struct nfs_fh *, int);
 
 /*
  * inline functions

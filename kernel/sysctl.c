@@ -709,6 +709,17 @@ static struct ctl_table kern_table[] = {
 		.proc_handler	= &proc_dointvec,
 	},
 #endif
+#if defined(CONFIG_ARM) && defined(CONFIG_DEBUG_USER)
+ 	{
+ 		.ctl_name	= KERN_USER_DEBUG,
+ 		.procname	= "user_debug",
+ 		.data		= &user_debug,
+ 		.maxlen		= sizeof( int ),
+ 		.mode		= 0644,
+ 		.child		= NULL,
+ 	   .proc_handler	= &proc_dointvec,
+	},
+#endif
 #if defined(CONFIG_MMU)
 	{
 		.ctl_name	= KERN_RANDOMIZE,

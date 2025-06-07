@@ -21,7 +21,7 @@
 #define CLCD_UBAS 		0x00000010
 #define CLCD_LBAS 		0x00000014
 
-#if !defined(CONFIG_ARCH_VERSATILE) && !defined(CONFIG_ARCH_REALVIEW)
+#if !defined(CONFIG_ARCH_VERSATILE) && !defined(CONFIG_ARCH_REALVIEW) && !defined(CONFIG_PLAT_BCM476X)
 #define CLCD_IENB 		0x00000018
 #define CLCD_CNTL 		0x0000001c
 #else
@@ -233,7 +233,7 @@ static inline int clcdfb_check(struct clcd_fb *fb, struct fb_var_screeninfo *var
 {
 	var->xres_virtual = var->xres = (var->xres + 15) & ~15;
 	var->yres_virtual = var->yres = (var->yres + 1) & ~1;
-
+#if 0
 #define CHECK(e,l,h) (var->e < l || var->e > h)
 	if (CHECK(right_margin, (5+1), 256) ||	/* back porch */
 	    CHECK(left_margin, (5+1), 256) ||	/* front porch */
@@ -272,7 +272,7 @@ static inline int clcdfb_check(struct clcd_fb *fb, struct fb_var_screeninfo *var
 	     CHECK(sync)))
 		return -EINVAL;
 #undef CHECK
-
+#endif
 	var->nonstd = 0;
 	var->accel_flags = 0;
 

@@ -57,6 +57,7 @@
  * @open_count: number of times this port has been opened.
  * @throttled: nonzero if the read urb is inactive to throttle the device
  * @throttle_req: nonzero if the tty wants to throttle us
+ * @poll_rx_cb: Optional console polling callback routine
  *
  * This structure is used by the usb-serial core and drivers for the specific
  * ports of a device.
@@ -94,6 +95,10 @@ struct usb_serial_port {
 	char			throttle_req;
 	char			console;
 	struct device		dev;
+#ifdef CONFIG_CONSOLE_POLL
+	int	(*poll_rx_cb)(u8);
+#endif
+
 };
 #define to_usb_serial_port(d) container_of(d, struct usb_serial_port, dev)
 
@@ -242,6 +247,9 @@ struct usb_serial_driver {
 	void (*write_int_callback)(struct urb *urb);
 	void (*read_bulk_callback)(struct urb *urb);
 	void (*write_bulk_callback)(struct urb *urb);
+#ifdef CONFIG_CONSOLE_POLL
+	int (*poll_get_char)(struct usb_serial_port *port);
+#endif
 };
 #define to_usb_serial_driver(d) \
 	container_of(d, struct usb_serial_driver, driver)

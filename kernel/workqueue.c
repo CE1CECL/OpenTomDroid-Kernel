@@ -35,6 +35,16 @@
 #include <linux/lockdep.h>
 
 /*
+ * Stub out cpu_isolated() if isolated CPUs are allowed to 
+ * run workqueues.
+ */
+#ifdef CONFIG_CPUISOL_WORKQUEUE
+#define cpu_unusable(cpu) cpu_isolated(cpu)
+#else
+#define cpu_unusable(cpu) (0)
+#endif
+
+/*
  * The per-CPU workqueue (if single thread, we always use the first
  * possible cpu).
  */
@@ -98,7 +108,7 @@ static const cpumask_t *wq_cpu_map(struct workqueue_struct *wq)
 static
 struct cpu_workqueue_struct *wq_per_cpu(struct workqueue_struct *wq, int cpu)
 {
-	if (unlikely(is_single_threaded(wq)))
+	if (unlikely(is_single_threaded(wq)) || cpu_unusable(cpu))
 		cpu = singlethread_cpu;
 	return per_cpu_ptr(wq->cpu_wq, cpu);
 }
@@ -249,9 +259,11 @@ int queue_delayed_work_on(int cpu, struct workqueue_struct *wq,
 		timer->data = (unsigned long)dwork;
 		timer->function = delayed_work_timer_fn;
 
-		if (unlikely(cpu >= 0))
+		if (unlikely(cpu >= 0)) {
+			if (cpu_unusable(cpu))
+				cpu = singlethread_cpu;
 			add_timer_on(timer, cpu);
-		else
+		} else
 			add_timer(timer);
 		ret = 1;
 	}
@@ -688,7 +700,8 @@ int schedule_on_each_cpu(work_func_t func)
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct work_struct *work = per_cpu_ptr(works, cpu);
-
+		if (cpu_unusable(cpu))
+			continue;
 		INIT_WORK(work, func);
 		schedule_work_on(cpu, work);
 	}
@@ -751,6 +764,9 @@ int current_is_keventd(void)
 	return ret;
 
 }
+#ifdef CONFIG_INTERPEAK
+EXPORT_SYMBOL(current_is_keventd);
+#endif
 
 static struct cpu_workqueue_struct *
 init_cpu_workqueue(struct workqueue_struct *wq, int cpu)
@@ -852,7 +868,7 @@ struct workqueue_struct *__create_workqueue_key(const char *name,
 		 */
 		for_each_possible_cpu(cpu) {
 			cwq = init_cpu_workqueue(wq, cpu);
-			if (err || !cpu_online(cpu))
+			if (err || !cpu_online(cpu) || cpu_unusable(cpu))
 				continue;
 			err = create_workqueue_thread(cwq, cpu);
 			start_workqueue_thread(cwq, cpu);
@@ -929,8 +945,11 @@ static int __devinit workqueue_cpu_callback(struct notifier_block *nfb,
 	struct workqueue_struct *wq;
 	int ret = NOTIFY_OK;
 
-	action &= ~CPU_TASKS_FROZEN;
+	if (cpu_unusable(cpu))
+		return NOTIFY_OK;
 
+	action &= ~CPU_TASKS_FROZEN;
+	
 	switch (action) {
 	case CPU_UP_PREPARE:
 		cpu_set(cpu, cpu_populated_map);
@@ -1017,7 +1036,7 @@ EXPORT_SYMBOL_GPL(work_on_cpu);
 
 void __init init_workqueues(void)
 {
-	cpu_populated_map = cpu_online_map;
+	cpus_andnot(cpu_populated_map, cpu_online_map, cpu_isolated_map);
 	singlethread_cpu = first_cpu(cpu_possible_map);
 	cpu_singlethread_map = cpumask_of_cpu(singlethread_cpu);
 	hotcpu_notifier(workqueue_cpu_callback, 0);

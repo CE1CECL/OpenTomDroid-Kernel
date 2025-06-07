@@ -2325,9 +2325,6 @@ config ATL1E
 	help
 	  This driver supports the Atheros L1E gigabit ethernet adapter.
 
-	  To compile this driver as a module, choose M here.  The module
-	  will be called atl1e.
-
 config JME
 	tristate "JMicron(R) PCI-Express Gigabit Ethernet support"
 	depends on PCI

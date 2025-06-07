@@ -2,6 +2,14 @@
 # GPIO infrastructure and expanders
 #
 
+config HAVE_GPIO_LIB
+	bool
+	select GPIOLIB
+	help
+	  BCM* platforms select gpiolib if they use this infrastructure
+	  for all their GPIOs, usually starting with ones integrated
+	  into SOC processors.
+
 config ARCH_WANT_OPTIONAL_GPIOLIB
 	bool
 	help
@@ -26,7 +34,7 @@ config ARCH_REQUIRE_GPIOLIB
 
 menuconfig GPIOLIB
 	bool "GPIO Support"
-	depends on ARCH_WANT_OPTIONAL_GPIOLIB || ARCH_REQUIRE_GPIOLIB
+	depends on ARCH_WANT_OPTIONAL_GPIOLIB || ARCH_REQUIRE_GPIOLIB || HAVE_GPIO_LIB
 	select GENERIC_GPIO
 	help
 	  This enables GPIO support through the generic GPIO library.
@@ -67,11 +75,33 @@ config GPIO_SYSFS
 
 comment "Memory mapped GPIO expanders:"
 
+config GPIO_VGPIO
+	tristate "Virtual GPIO support"
+	help
+	  Simple GPIO chip implementation, using gpiolib itself as a backend
+
+config GPIO_VGPIO_EARLY
+	bool "Virtual GPIO early setup"
+	depends on GPIO_VGPIO=y
+	help
+	  Enable this option if you want virtual GPIO to be available early
+	  in the boot process.
+
 config GPIO_XILINX
 	bool "Xilinx GPIO support"
 	depends on PPC_OF
 	help
 	  Say yes here to support the Xilinx FPGA GPIO device
+
+config GPIO_BCM4760
+	tristate "BCM4760 GPIO Driver"
+	depends on PLAT_BCM476X
+	default n
+	help
+	  The BCM476X GPIO driver provides generic/GPIOLIB support
+	  using the built-in GPIO support provided by the Broadcom
+	  BCM4760 device. GPIO support via this driver should typically
+	  be built into the kernel rather than built as a module.
 
 comment "I2C GPIO expanders:"
 

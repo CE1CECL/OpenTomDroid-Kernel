@@ -189,6 +189,9 @@ static inline struct proc_dir_entry *create_proc_read_entry(const char *name,
 extern struct proc_dir_entry *proc_net_fops_create(struct net *net,
 	const char *name, mode_t mode, const struct file_operations *fops);
 extern void proc_net_remove(struct net *net, const char *name);
+#ifdef CONFIG_INTERPEAK
+extern void do_proc_net_remove(struct net *net, const char *name);
+#endif
 extern struct proc_dir_entry *proc_net_mkdir(struct net *net, const char *name,
 	struct proc_dir_entry *parent);
 
@@ -263,6 +266,7 @@ static inline void dup_mm_exe_file(struct mm_struct *oldmm,
 #if !defined(CONFIG_PROC_KCORE)
 static inline void kclist_add(struct kcore_list *new, void *addr, size_t size)
 {
+   (void)new;(void)addr;(void)size;
 }
 #else
 extern void kclist_add(struct kcore_list *, void *, size_t);

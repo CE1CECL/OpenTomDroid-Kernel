@@ -153,6 +153,10 @@ static void bit_putcs(struct vc_data *vc, struct fb_info *info,
 	u32 attribute = get_attribute(info, scr_readw(s));
 	u8 *dst, *buf = NULL;
 
+#if defined(CONFIG_FB_S3C) || defined(CONFIG_FB_S3C_V2)
+	return;
+#endif
+
 	image.fg_color = fg;
 	image.bg_color = bg;
 	image.dx = xx * vc->vc_font.width;

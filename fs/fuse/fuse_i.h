@@ -20,6 +20,10 @@
 #include <linux/mutex.h>
 #include <linux/rwsem.h>
 
+#ifdef __arm__
+#define DCACHE_BUG
+#endif
+
 /** Max number of pages that can be used in a single read request */
 #define FUSE_MAX_PAGES_PER_REQ 32
 

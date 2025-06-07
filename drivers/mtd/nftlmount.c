@@ -51,8 +51,11 @@ static int find_boot_record(struct NFTLrecord *nftl)
 	   the mtd device accordingly.  We could even get rid of
 	   nftl->EraseSize if there were any point in doing so. */
 	nftl->EraseSize = nftl->mbd.mtd->erasesize;
+#ifdef CONFIG_MTD_LFS_SUPPORT
+        nftl->nb_blocks = nftl->mbd.mtd->size & ~(nftl->EraseSize -1) ;
+#else        
         nftl->nb_blocks = nftl->mbd.mtd->size / nftl->EraseSize;
-
+#endif
 	nftl->MediaUnit = BLOCK_NIL;
 	nftl->SpareMediaUnit = BLOCK_NIL;
 

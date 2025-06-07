@@ -296,14 +296,25 @@ static void apm_battery_apm_get_power_status(struct apm_power_info *info)
 		status.intval = POWER_SUPPLY_STATUS_UNKNOWN;
 
 	/* ac line status */
+#ifdef CONFIG_ARCH_BCM4760
+	{
+		union power_supply_propval online;
 
+		MPSY_PROP(ONLINE, &online);
+		if(online.intval){
+			info->ac_line_status = APM_AC_ONLINE;
+		} else {
+			info->ac_line_status = APM_AC_OFFLINE;
+		}
+	}
+#else
 	if ((status.intval == POWER_SUPPLY_STATUS_CHARGING) ||
 	    (status.intval == POWER_SUPPLY_STATUS_NOT_CHARGING) ||
 	    (status.intval == POWER_SUPPLY_STATUS_FULL))
 		info->ac_line_status = APM_AC_ONLINE;
 	else
 		info->ac_line_status = APM_AC_OFFLINE;
-
+#endif
 	/* battery life (i.e. capacity, in percents) */
 
 	if (MPSY_PROP(CAPACITY, &capacity) == 0) {

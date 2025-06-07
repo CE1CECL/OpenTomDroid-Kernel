@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/lzo.h>
+#define _LINUX_KERNEL_H
 #include <asm/unaligned.h>
 #include "lzodefs.h"
 

@@ -31,4 +31,3 @@ config SND_AU1X00
 	  ALSA Sound driver for the Au1x00's AC97 port.
 
 endif	# SND_MIPS
-

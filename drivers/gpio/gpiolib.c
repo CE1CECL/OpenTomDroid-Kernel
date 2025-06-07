@@ -997,6 +997,15 @@ fail:
 EXPORT_SYMBOL_GPL(gpio_direction_output);
 
 
+int gpio_direction_is_output(unsigned gpio)
+{
+    struct gpio_desc	*gdesc = &gpio_desc[gpio];
+
+    return test_bit(FLAG_IS_OUT, &gdesc->flags);
+}
+EXPORT_SYMBOL_GPL(gpio_direction_is_output);
+
+
 /* I/O calls are only valid after configuration completed; the relevant
  * "is this a valid GPIO" error checks should already have been done.
  *

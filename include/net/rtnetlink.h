@@ -12,7 +12,16 @@ extern int	__rtnl_register(int protocol, int msgtype,
 extern void	rtnl_register(int protocol, int msgtype,
 			      rtnl_doit_func, rtnl_dumpit_func);
 extern int	rtnl_unregister(int protocol, int msgtype);
+
 extern void	rtnl_unregister_all(int protocol);
+
+#ifdef CONFIG_INTERPEAK
+extern void	rtnl_do_register(int protocol, int msgtype,
+				 rtnl_doit_func, rtnl_dumpit_func);
+extern int	rtnl_do_unregister(int protocol, int msgtype);
+extern void	rtnl_do_unregister_all(int protocol);
+extern int      rtnl_dump_all(struct sk_buff *skb, struct netlink_callback *cb);
+#endif /* CONFIG_INTERPEAK */
 
 static inline int rtnl_msg_family(struct nlmsghdr *nlh)
 {

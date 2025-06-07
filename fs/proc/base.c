@@ -77,6 +77,7 @@
 #include <linux/poll.h>
 #include <linux/nsproxy.h>
 #include <linux/oom.h>
+#include <linux/sched.h>
 #include <linux/elf.h>
 #include <linux/pid_namespace.h>
 #include "internal.h"
@@ -291,6 +292,22 @@ out:
 	return res;
 }
 
+#ifdef CONFIG_DEBUG_ASID
+static int proc_pid_asid(struct task_struct *task, char * buffer)
+{
+	struct mm_struct *mm = get_task_mm(task);
+	unsigned int len;
+
+	if (mm) {
+		len = sprintf(buffer, "%d\n", mm->context.id);
+		mmput(mm);
+	} else {
+		len = sprintf(buffer, "0\n");
+	}
+	return len;
+}
+#endif /* CONFIG_DEBUG_ASID */
+
 static int proc_pid_auxv(struct task_struct *task, char *buffer)
 {
 	int res = 0;
@@ -406,6 +423,22 @@ static const struct file_operations proc_lstats_operations = {
 	.release	= single_release,
 };
 
+#endif
+
+#ifdef CONFIG_DEBUG_STACK_USAGE
+/*
+ * Provides /proc/PID/kernal_stack_usage
+ */
+static int proc_pid_kernel_stack_usage(struct task_struct *task, char *buffer)
+{
+   unsigned long *n = end_of_stack(task);
+   unsigned long free, used;
+   while (!*n)
+      n++;
+   free = (unsigned long)n - (unsigned long)end_of_stack(task);
+   used = (unsigned long)task_thread_info(task) + THREAD_SIZE - (unsigned long)n;
+   return sprintf(buffer, "free=%lu used=%lu\n", free, used);
+}
 #endif
 
 /* The badness from the OOM killer */
@@ -2449,6 +2482,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 	INF("syscall",    S_IRUSR, pid_syscall),
 #endif
 	INF("cmdline",    S_IRUGO, pid_cmdline),
+#ifdef CONFIG_DEBUG_ASID
+	INF("asid",       S_IRUSR, pid_asid),
+#endif
 	ONE("stat",       S_IRUGO, tgid_stat),
 	ONE("statm",      S_IRUGO, pid_statm),
 	REG("maps",       S_IRUGO, maps),
@@ -2499,6 +2535,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 #endif
 #ifdef CONFIG_TASK_IO_ACCOUNTING
 	INF("io",	S_IRUGO, tgid_io_accounting),
+#endif
+#ifdef CONFIG_DEBUG_STACK_USAGE
+	INF("kernel_stack_usage", S_IRUGO, pid_kernel_stack_usage),
 #endif
 };
 
@@ -2831,6 +2870,9 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 #ifdef CONFIG_TASK_IO_ACCOUNTING
 	INF("io",	S_IRUGO, tid_io_accounting),
+#endif
+#ifdef CONFIG_DEBUG_STACK_USAGE
+	INF("kernel_stack_usage", S_IRUGO, pid_kernel_stack_usage),
 #endif
 };
 

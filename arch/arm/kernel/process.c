@@ -34,6 +34,7 @@
 #include <asm/processor.h>
 #include <asm/system.h>
 #include <asm/thread_notify.h>
+#include <asm/stacktrace.h>
 #include <asm/mach/time.h>
 
 static const char *processor_modes[] = {
@@ -299,6 +300,22 @@ void release_thread(struct task_struct *dead_task)
 
 asmlinkage void ret_from_fork(void) __asm__("ret_from_fork");
 
+void prepare_to_copy(struct task_struct *tsk)
+{
+#ifdef CONFIG_CRUNCH
+	if (elf_hwcap & HWCAP_CRUNCH)
+		crunch_task_disable(tsk);
+#endif
+#ifdef CONFIG_IWMMXT
+	if (test_ti_thread_flag(task_thread_info(tsk), TIF_USING_IWMMXT))
+		iwmmxt_task_disable(task_thread_info(tsk));
+#endif
+#ifdef CONFIG_VFP
+	if (elf_hwcap & HWCAP_VFP)
+		vfp_task_disable(tsk);
+#endif
+}
+
 int
 copy_thread(int nr, unsigned long clone_flags, unsigned long stack_start,
 	    unsigned long stk_sz, struct task_struct *p, struct pt_regs *regs)
@@ -364,7 +381,7 @@ pid_t kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 	regs.ARM_r2 = (unsigned long)fn;
 	regs.ARM_r3 = (unsigned long)do_exit;
 	regs.ARM_pc = (unsigned long)kernel_thread_helper;
-	regs.ARM_cpsr = SVC_MODE;
+	regs.ARM_cpsr = SVC_MODE | PSR_ENDSTATE | PSR_ISETSTATE;
 
 	return do_fork(flags|CLONE_VM|CLONE_UNTRACED, 0, &regs, 0, NULL, NULL);
 }
@@ -372,23 +389,21 @@ EXPORT_SYMBOL(kernel_thread);
 
 unsigned long get_wchan(struct task_struct *p)
 {
-	unsigned long fp, lr;
-	unsigned long stack_start, stack_end;
+	struct stackframe frame;
 	int count = 0;
 	if (!p || p == current || p->state == TASK_RUNNING)
 		return 0;
 
-	stack_start = (unsigned long)end_of_stack(p);
-	stack_end = (unsigned long)task_stack_page(p) + THREAD_SIZE;
-
-	fp = thread_saved_fp(p);
+	frame.fp = thread_saved_fp(p);
+	frame.sp = thread_saved_sp(p);
+	frame.lr = 0;			/* recovered from the stack */
+	frame.pc = thread_saved_pc(p);
 	do {
-		if (fp < stack_start || fp > stack_end)
+		int ret = unwind_frame(&frame);
+		if (ret < 0)
 			return 0;
-		lr = ((unsigned long *)fp)[-1];
-		if (!in_sched_functions(lr))
-			return lr;
-		fp = *(unsigned long *) (fp - 12);
+		if (!in_sched_functions(frame.pc))
+			return frame.pc;
 	} while (count ++ < 16);
 	return 0;
 }

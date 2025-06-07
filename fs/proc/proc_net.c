@@ -188,7 +188,15 @@ void proc_net_remove(struct net *net, const char *name)
 {
 	remove_proc_entry(name, net->proc_net);
 }
-EXPORT_SYMBOL_GPL(proc_net_remove);
+EXPORT_SYMBOL(proc_net_remove);
+
+#ifdef CONFIG_INTERPEAK
+void do_proc_net_remove(struct net *net, const char *name)
+{
+	remove_proc_entry(name, net->proc_net);
+}
+EXPORT_SYMBOL(do_proc_net_remove);
+#endif
 
 static __net_init int proc_net_ns_init(struct net *net)
 {

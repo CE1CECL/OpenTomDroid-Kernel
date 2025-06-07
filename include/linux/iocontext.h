@@ -83,6 +83,8 @@ struct io_context {
 	struct radix_tree_root radix_root;
 	struct hlist_head cic_list;
 	void *ioc_data;
+
+	int id;		/* cgroup ID */
 };
 
 static inline struct io_context *ioc_task_link(struct io_context *ioc)
@@ -104,6 +106,7 @@ int put_io_context(struct io_context *ioc);
 void exit_io_context(void);
 struct io_context *get_io_context(gfp_t gfp_flags, int node);
 struct io_context *alloc_io_context(gfp_t gfp_flags, int node);
+void init_io_context(struct io_context *ioc);
 void copy_io_context(struct io_context **pdst, struct io_context **psrc);
 #else
 static inline void exit_io_context(void)

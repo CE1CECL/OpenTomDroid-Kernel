@@ -153,6 +153,42 @@ config MFD_WM8350_I2C
 	  I2C as the control interface.  Additional options must be
 	  selected to enable support for the functionality of the chip.
 
+# By Jongbin
+config MFD_S5M8751_I2C
+	tristate "Support Advanced PMIC S5M8751 with I2C"
+	select MFD_S5M8751
+	depends on I2C
+	help
+	  The S5M8751 is an advanced Power Management IC including audio function.
+
+config MFD_S5M8751_PMIC
+	tristate "PMIC S5M8751"
+	depends on MFD_S5M8751_I2C
+	help
+	  This module enables several PMIC functionalities on S5M8751.
+
+# end
+
+config MFD_LTC3577
+	tristate
+
+config MFD_LTC3577_BL
+	tristate "Enable LTC3577 backlight support"
+	select MFD_LTC3577
+	default m
+	depends on I2C
+	help
+	  Support for LTC3577 backlight control.
+
+config MFD_LTC3577_PMIC
+	tristate "Enable LTC3577 PMIC support"
+	select MFD_LTC3577
+	default m
+	depends on I2C && (TOMTOM_USBMODE || TOMTOM_USBMODE_DUMMY)
+	help
+	  Support for LTC3577 PMIC to handle correct battery charging and suspend resume.
+
+
 endmenu
 
 menu "Multimedia Capabilities Port drivers"

@@ -19,6 +19,7 @@
 #include <linux/err.h>
 #include <linux/pwm.h>
 #include <linux/pwm_backlight.h>
+#include <linux/delay.h>
 
 struct pwm_bl_data {
 	struct pwm_device	*pwm;
@@ -42,7 +43,7 @@ static int pwm_backlight_update_status(struct backlight_device *bl)
 		brightness = pb->notify(brightness);
 
 	if (brightness == 0) {
-		pwm_config(pb->pwm, 0, pb->period);
+		/* do not pwm_config() here because that turns the pwm on and that causes a flash if it was off already */
 		pwm_disable(pb->pwm);
 	} else {
 		pwm_config(pb->pwm, brightness * pb->period / max, pb->period);
@@ -132,6 +133,8 @@ static int pwm_backlight_remove(struct platform_device *pdev)
 	pwm_config(pb->pwm, 0, pb->period);
 	pwm_disable(pb->pwm);
 	pwm_free(pb->pwm);
+	/*T6 should greater than 10 frames*/
+	mdelay( 200);
 	kfree(pb);
 	if (data->exit)
 		data->exit(&pdev->dev);
@@ -145,8 +148,12 @@ static int pwm_backlight_suspend(struct platform_device *pdev,
 	struct backlight_device *bl = platform_get_drvdata(pdev);
 	struct pwm_bl_data *pb = dev_get_drvdata(&bl->dev);
 
+	if (pb->notify)
+		pb->notify(0);
 	pwm_config(pb->pwm, 0, pb->period);
 	pwm_disable(pb->pwm);
+	/*T6 should greater than 10 frames*/
+	mdelay( 200);
 	return 0;
 }
 
@@ -177,7 +184,7 @@ static int __init pwm_backlight_init(void)
 {
 	return platform_driver_register(&pwm_backlight_driver);
 }
-module_init(pwm_backlight_init);
+late_initcall(pwm_backlight_init);
 
 static void __exit pwm_backlight_exit(void)
 {

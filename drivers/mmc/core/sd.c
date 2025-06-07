@@ -21,6 +21,12 @@
 #include "bus.h"
 #include "mmc_ops.h"
 #include "sd_ops.h"
+#include <asm/mach-types.h>
+
+
+#ifdef CONFIG_MMC_BCM_SD
+#include "../host/sdhci.h"
+#endif
 
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
@@ -87,7 +93,7 @@ static void mmc_decode_cid(struct mmc_card *card)
 /*
  * Given a 128-bit response, decode to our card CSD structure.
  */
-static int mmc_decode_csd(struct mmc_card *card)
+static int sd_mmc_decode_csd(struct mmc_card *card)
 {
 	struct mmc_csd *csd = &card->csd;
 	unsigned int e, m, csd_struct;
@@ -254,6 +260,10 @@ static int mmc_switch_hs(struct mmc_card *card)
 	if (card->sw_caps.hs_max_dtr == 0)
 		return 0;
 
+#ifdef CONFIG_MMC_BCM_SD	
+	if (card->host->f_max <= SDHCI_HOST_MAX_CLK_LS_MODE)
+		return 0;
+#endif  
 	err = -EIO;
 
 	status = kmalloc(64, GFP_KERNEL);
@@ -421,7 +431,7 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		if (err)
 			goto free_card;
 
-		err = mmc_decode_csd(card);
+		err = sd_mmc_decode_csd(card);
 		if (err)
 			goto free_card;
 
@@ -467,7 +477,25 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	/*
 	 * Compute bus speed.
 	 */
-	max_dtr = (unsigned int)-1;
+
+//#ifdef CONFIG_PLAT_BCM476X   // @KP: 090130: fixed correct clock divider setting for SD card
+//    max_dtr = card->csd.max_dtr;
+//#else
+//    max_dtr = (unsigned int)-1;
+//#endif
+
+  if( machine_arch_type == MACH_TYPE_MESSINA )
+      max_dtr = card->csd.max_dtr;
+  else
+      max_dtr = (unsigned int)-1;
+/* CORKER-194
+ * To use the SDIO high speed capability remove the #ifdef CONFIG_PLAT_BCM476X
+ * above and replace with only "max_dtr = (unsigned int)-1;"
+ * Currently all cards will run @ 25MHz.
+ *
+ * Take care with released Messinas, they have only been EMI-tested for a 25MHz 
+ * speed on the SDcard.
+ */
 
 	if (mmc_card_highspeed(card)) {
 		if (max_dtr > card->sw_caps.hs_max_dtr)
@@ -475,6 +503,9 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	} else if (max_dtr > card->csd.max_dtr) {
 		max_dtr = card->csd.max_dtr;
 	}
+#if (defined(CONFIG_ARCH_FPGA11107))
+   max_dtr >>= 5;                /* Divide clock by 32 for FPGA scale factor */
+#endif
 
 	mmc_set_clock(host, max_dtr);
 

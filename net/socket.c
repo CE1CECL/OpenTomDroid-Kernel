@@ -87,7 +87,7 @@
 #include <linux/audit.h>
 #include <linux/wireless.h>
 #include <linux/nsproxy.h>
-
+#include <linux/cgroup_tc.h>
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 
@@ -96,6 +96,7 @@
 
 #include <net/sock.h>
 #include <linux/netfilter.h>
+#include <trace/socket.h>
 
 static int sock_no_open(struct inode *irrelevant, struct file *dontcare);
 static ssize_t sock_aio_read(struct kiocb *iocb, const struct iovec *iov,
@@ -575,6 +576,7 @@ int sock_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	ret = __sock_sendmsg(&iocb, sock, msg, size);
 	if (-EIOCBQUEUED == ret)
 		ret = wait_on_sync_kiocb(&iocb);
+	trace_socket_sendmsg(sock, msg, size, ret);
 	return ret;
 }
 
@@ -654,10 +656,12 @@ int sock_recvmsg(struct socket *sock, struct msghdr *msg,
 	int ret;
 
 	init_sync_kiocb(&iocb, NULL);
+
 	iocb.private = &siocb;
 	ret = __sock_recvmsg(&iocb, sock, msg, size, flags);
 	if (-EIOCBQUEUED == ret)
 		ret = wait_on_sync_kiocb(&iocb);
+	trace_socket_recvmsg(sock, msg, size, flags, ret);
 	return ret;
 }
 
@@ -895,6 +899,7 @@ static long sock_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 				err = br_ioctl_hook(net, cmd, argp);
 			mutex_unlock(&br_ioctl_mutex);
 			break;
+#ifndef CONFIG_INTERPEAK
 		case SIOCGIFVLAN:
 		case SIOCSIFVLAN:
 			err = -ENOPKG;
@@ -906,6 +911,7 @@ static long sock_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 				err = vlan_ioctl_hook(net, argp);
 			mutex_unlock(&vlan_ioctl_mutex);
 			break;
+#endif /* CONFIG_INTERPEAK */
 		case SIOCADDDLCI:
 		case SIOCDELDLCI:
 			err = -ENOPKG;
@@ -919,6 +925,21 @@ static long sock_ioctl(struct file *file, unsigned cmd, unsigned long arg)
 			break;
 		default:
 			err = sock->ops->ioctl(sock, cmd, arg);
+
+#ifdef CONFIG_INTERPEAK
+            if (err == -ENOIOCTLCMD
+                && (cmd == SIOCGIFVLAN || cmd == SIOCSIFVLAN)) {
+                err = -ENOPKG;
+                if (!vlan_ioctl_hook)
+                    request_module("8021q");
+
+                mutex_lock(&vlan_ioctl_mutex);
+                if (vlan_ioctl_hook)
+                    err = vlan_ioctl_hook(net, argp);
+                mutex_unlock(&vlan_ioctl_mutex);
+                break;
+            }
+#endif /* CONFIG_INTERPEAK */
 
 			/*
 			 * If this ioctl is unknown try to hand it down
@@ -1172,6 +1193,8 @@ static int __sock_create(struct net *net, int family, int type, int protocol,
 	if (err < 0)
 		goto out_module_put;
 
+	cgroup_tc_set_sock_classid(sock->sk);
+
 	/*
 	 * Now to bump the refcnt of the [loadable] module that owns this
 	 * socket at sock_release time we decrement its refcnt.
@@ -1243,6 +1266,7 @@ SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
 	if (retval < 0)
 		goto out_release;
 
+	trace_socket_create(sock, retval);
 out:
 	/* It may be already another descriptor 8) Not kernel problem. */
 	return retval;
@@ -1475,6 +1499,8 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 	err = sock->ops->accept(sock, newsock, sock->file->f_flags);
 	if (err < 0)
 		goto out_fd;
+
+	cgroup_tc_set_sock_classid(newsock->sk);
 
 	if (upeer_sockaddr) {
 		if (newsock->ops->getname(newsock, (struct sockaddr *)&address,
@@ -2073,6 +2099,8 @@ SYSCALL_DEFINE2(socketcall, int, call, unsigned long __user *, args)
 
 	a0 = a[0];
 	a1 = a[1];
+
+	trace_socket_call(call, a0);
 
 	switch (call) {
 	case SYS_SOCKET:

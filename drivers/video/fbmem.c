@@ -194,8 +194,8 @@ static void  fb_set_logo_truepalette(struct fb_info *info,
 					    u32 *palette)
 {
 	static const unsigned char mask[] = { 0,0x80,0xc0,0xe0,0xf0,0xf8,0xfc,0xfe,0xff };
-	unsigned char redmask, greenmask, bluemask;
-	int redshift, greenshift, blueshift;
+	unsigned char redmask, greenmask, bluemask, transpmask;
+	int redshift, greenshift, blueshift, transpshift;
 	int i;
 	const unsigned char *clut = logo->clut;
 
@@ -207,14 +207,23 @@ static void  fb_set_logo_truepalette(struct fb_info *info,
 	redmask   = mask[info->var.red.length   < 8 ? info->var.red.length   : 8];
 	greenmask = mask[info->var.green.length < 8 ? info->var.green.length : 8];
 	bluemask  = mask[info->var.blue.length  < 8 ? info->var.blue.length  : 8];
+	transpmask= mask[info->var.transp.length< 8 ? info->var.transp.length: 8];
 	redshift   = info->var.red.offset   - (8 - info->var.red.length);
 	greenshift = info->var.green.offset - (8 - info->var.green.length);
 	blueshift  = info->var.blue.offset  - (8 - info->var.blue.length);
+	transpshift= info->var.transp.offset- (8 - info->var.transp.length);
 
 	for ( i = 0; i < logo->clutsize; i++) {
 		palette[i+32] = (safe_shift((clut[0] & redmask), redshift) |
 				 safe_shift((clut[1] & greenmask), greenshift) |
 				 safe_shift((clut[2] & bluemask), blueshift));
+		if ( info->var.transp.length > 0 )
+		{
+		   // If transparency is available, set the color to fully opaque
+
+		   palette[i+32] |= safe_shift(transpmask,transpshift);
+		}
+             
 		clut += 3;
 	}
 }
@@ -1002,7 +1011,7 @@ fb_blank(struct fb_info *info, int blank)
  	return ret;
 }
 
-static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
+long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			unsigned long arg)
 {
 	struct fb_ops *fb;

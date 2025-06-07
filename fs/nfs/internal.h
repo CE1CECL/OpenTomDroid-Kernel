@@ -36,12 +36,12 @@ struct nfs_parsed_mount_data {
 	int			timeo, retrans;
 	int			acregmin, acregmax,
 				acdirmin, acdirmax;
+	int			nfs_prog;
 	int			namlen;
 	unsigned int		bsize;
 	unsigned int		auth_flavor_len;
 	rpc_authflavor_t	auth_flavors[1];
 	char			*client_address;
-
 	struct {
 		struct sockaddr_storage	address;
 		size_t			addrlen;

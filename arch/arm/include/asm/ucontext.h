@@ -91,7 +91,7 @@ struct aux_sigframe {
 #ifdef CONFIG_IWMMXT
 	struct iwmmxt_sigframe	iwmmxt;
 #endif
-#if 0 && defined CONFIG_VFP /* Not yet saved.  */
+#ifdef CONFIG_VFP
 	struct vfp_sigframe	vfp;
 #endif
 	/* Something that isn't a valid magic number for any coprocessor.  */

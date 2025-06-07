@@ -3289,8 +3289,9 @@ void ata_scsi_scan_host(struct ata_port *ap, int sync)
 				"                  switching to async\n");
 	}
 
-	queue_delayed_work(ata_aux_wq, &ap->hotplug_task,
-			   round_jiffies_relative(HZ));
+	if (ap->pflags & ATA_PFLAG_SCSI_HOTPLUG)
+		queue_delayed_work(ata_aux_wq, &ap->hotplug_task,
+				   round_jiffies_relative(HZ));
 }
 
 /**

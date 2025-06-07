@@ -30,6 +30,9 @@ void __init driver_init(void)
 	 * core core pieces.
 	 */
 	platform_bus_init();
+#ifdef CONFIG_PMU_DEVICE
+	pmu_init();
+#endif
 	system_bus_init();
 	cpu_dev_init();
 	memory_dev_init();

@@ -135,7 +135,7 @@ struct dongle_reg {
 
 /* 
  * Per-packet information we need to hide inside sk_buff 
- * (must not exceed 48 bytes, check with struct sk_buff)
+ * (must not exceed 48 bytes, check with struct sk_buff) 
  * The default_qdisc_pad field is a temporary hack.
  */
 struct irda_skb_cb {

@@ -40,6 +40,7 @@
 #include <linux/utsname.h>
 #include <linux/hash.h>
 #include <linux/ftrace.h>
+#include <trace/lockdep.h>
 
 #include <asm/sections.h>
 
@@ -2175,6 +2176,8 @@ void trace_hardirqs_on_caller(unsigned long ip)
 
 	time_hardirqs_on(CALLER_ADDR0, ip);
 
+	_trace_lockdep_hardirqs_on(ip);
+
 	if (unlikely(!debug_locks || current->lockdep_recursion))
 		return;
 
@@ -2228,6 +2231,8 @@ void trace_hardirqs_off_caller(unsigned long ip)
 
 	time_hardirqs_off(CALLER_ADDR0, ip);
 
+	_trace_lockdep_hardirqs_off(ip);
+
 	if (unlikely(!debug_locks || current->lockdep_recursion))
 		return;
 
@@ -2259,6 +2264,8 @@ EXPORT_SYMBOL(trace_hardirqs_off);
 void trace_softirqs_on(unsigned long ip)
 {
 	struct task_struct *curr = current;
+
+	_trace_lockdep_softirqs_on(ip);
 
 	if (unlikely(!debug_locks))
 		return;
@@ -2293,6 +2300,8 @@ void trace_softirqs_on(unsigned long ip)
 void trace_softirqs_off(unsigned long ip)
 {
 	struct task_struct *curr = current;
+
+	_trace_lockdep_softirqs_off(ip);
 
 	if (unlikely(!debug_locks))
 		return;
@@ -2505,6 +2514,7 @@ void lockdep_init_map(struct lockdep_map *lock, const char *name,
 #ifdef CONFIG_LOCK_STAT
 	lock->cpu = raw_smp_processor_id();
 #endif
+	lock->hardirqs_off_ip = 0;
 	if (subclass)
 		register_lock_class(lock, subclass, 1);
 }
@@ -2525,6 +2535,9 @@ static int __lock_acquire(struct lockdep_map *lock, unsigned int subclass,
 	unsigned int depth, id;
 	int chain_head = 0;
 	u64 chain_key;
+
+	_trace_lockdep_lock_acquire(ip, subclass, lock, trylock, read,
+		hardirqs_off);
 
 	if (!prove_locking)
 		check = 1;
@@ -2552,6 +2565,33 @@ static int __lock_acquire(struct lockdep_map *lock, unsigned int subclass,
 		if (!class)
 			return 0;
 	}
+
+	/*
+	 * Lock has been taken with interrupts enabled.
+	 * Make sure every other uses so far had interrupts enabled.
+	 * Only consider SMP uses, so don't care about init code.
+	 */
+	if (num_online_cpus() > 1) {
+		if (!hardirqs_off) {
+			if (lock->hardirqs_off_ip) {
+				debug_locks_off();
+				printk("BUG : lock taken with interrupts enabled at\n");
+				print_ip_sym(ip);
+				printk("Previously taken with interrupts disabled ");
+				printk("at\n");
+				print_ip_sym(lock->hardirqs_off_ip);
+				printk("acquire class [%p] %s",
+					class->key, class->name);
+				if (class->name_version > 1)
+					printk("#%d", class->name_version);
+				printk("\n");
+				dump_stack();
+				return 0;
+			}
+		} else
+			lock->hardirqs_off_ip = ip;
+	}
+
 	debug_atomic_inc((atomic_t *)&class->ops);
 	if (very_verbose(class)) {
 		printk("\nacquire class [%p] %s", class->key, class->name);
@@ -2849,6 +2889,8 @@ static void
 __lock_release(struct lockdep_map *lock, int nested, unsigned long ip)
 {
 	struct task_struct *curr = current;
+
+	_trace_lockdep_lock_release(ip, lock, nested);
 
 	if (!check_unlock(curr, lock, ip))
 		return;

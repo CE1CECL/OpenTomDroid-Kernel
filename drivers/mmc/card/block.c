@@ -41,10 +41,19 @@
 
 #include "queue.h"
 
+#ifdef CONFIG_MMC_BCM_SD
+/*
+ * max 16 partitions per card
+ */
+#define MMC_SHIFT	4
+#define SDHCI_CMD_DROP_RETRY 5
+#else
 /*
  * max 8 partitions per card
  */
-#define MMC_SHIFT	3
+#define MMC_SHIFT	4
+#endif
+
 #define MMC_NUM_MINORS	(256 >> MMC_SHIFT)
 
 static DECLARE_BITMAP(dev_use, MMC_NUM_MINORS);
@@ -230,10 +239,16 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 		if (!mmc_card_blockaddr(card))
 			brq.cmd.arg <<= 9;
 		brq.cmd.flags = MMC_RSP_SPI_R1 | MMC_RSP_R1 | MMC_CMD_ADTC;
+#ifdef CONFIG_MMC_BCM_SD
+		brq.cmd.retries = SDHCI_CMD_DROP_RETRY;
+#endif
 		brq.data.blksz = 512;
 		brq.stop.opcode = MMC_STOP_TRANSMISSION;
 		brq.stop.arg = 0;
 		brq.stop.flags = MMC_RSP_SPI_R1B | MMC_RSP_R1B | MMC_CMD_AC;
+#ifdef CONFIG_MMC_BCM_SD
+		brq.stop.retries = SDHCI_CMD_DROP_RETRY;
+#endif
 		brq.data.blocks = req->nr_sectors;
 
 		if (brq.data.blocks > 1) {

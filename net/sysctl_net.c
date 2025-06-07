@@ -115,6 +115,15 @@ struct ctl_table_header *register_net_sysctl_table(struct net *net,
 }
 EXPORT_SYMBOL_GPL(register_net_sysctl_table);
 
+#ifdef CONFIG_INTERPEAK
+struct ctl_table_header *do_register_net_sysctl_table(struct net *net,
+	const struct ctl_path *path, struct ctl_table *table)
+{
+    return register_net_sysctl_table(net, path, table);
+}
+EXPORT_SYMBOL(do_register_net_sysctl_table);
+#endif
+
 struct ctl_table_header *register_net_sysctl_rotable(const
 		struct ctl_path *path, struct ctl_table *table)
 {

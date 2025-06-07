@@ -131,7 +131,7 @@ __KINLINE struct cmsghdr * __cmsg_nxthdr(void *__ctl, __kernel_size_t __size,
 {
 	struct cmsghdr * __ptr;
 
-	__ptr = (struct cmsghdr*)(((unsigned char *) __cmsg) +  CMSG_ALIGN(__cmsg->cmsg_len));
+	__ptr = (struct cmsghdr*)(void *)(((unsigned char *) __cmsg) +  CMSG_ALIGN(__cmsg->cmsg_len));
 	if ((unsigned long)((char*)(__ptr+1) - (char *) __ctl) > __size)
 		return (struct cmsghdr *)0;
 
@@ -191,7 +191,13 @@ struct ucred {
 #define AF_RXRPC	33	/* RxRPC sockets 		*/
 #define AF_ISDN		34	/* mISDN sockets 		*/
 #define AF_PHONET	35	/* Phonet sockets		*/
-#define AF_MAX		36	/* For now.. */
+
+/*  CONFIG INTERPEAK >>> */
+#define AF_IPROUTE      36      /* Interpeak Route sockets */
+#define AF_MPLS         37
+#define AF_LINK         38
+#define AF_MAX		39	/* For now.. */
+/* <<< CONFIG INTERPEAK */
 
 /* Protocol families, same as address families. */
 #define PF_UNSPEC	AF_UNSPEC
@@ -228,6 +234,11 @@ struct ucred {
 #define PF_IUCV		AF_IUCV
 #define PF_RXRPC	AF_RXRPC
 #define PF_ISDN		AF_ISDN
+/*  CONFIG INTERPEAK >>> */
+#define PF_IPROUTE      AF_IPROUTE
+#define PF_MPLS         AF_MPLS
+#define PF_LINK         AF_LINK
+/* <<< CONFIG INTERPEAK */
 #define PF_PHONET	AF_PHONET
 #define PF_MAX		AF_MAX
 

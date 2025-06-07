@@ -33,12 +33,30 @@ struct s3c24xx_uart_info {
 struct s3c24xx_uart_port {
 	unsigned char			rx_claimed;
 	unsigned char			tx_claimed;
+	unsigned int			pm_level;
+	unsigned long			baudclk_rate;
+
+	unsigned int			rx_irq;
+	unsigned int			tx_irq;
 
 	struct s3c24xx_uart_info	*info;
 	struct s3c24xx_uart_clksrc	*clksrc;
 	struct clk			*clk;
 	struct clk			*baudclk;
 	struct uart_port		port;
+
+#ifdef CONFIG_CPU_FREQ
+	struct notifier_block		freq_transition;
+#endif
+#if defined(CONFIG_S5P_UART_DMA_EN)
+    int dma_ch_tx;
+    int dma_busy;       //tx
+
+    int dma_ch_rx;
+	struct circ_buf rx_buf;
+    struct timer_list rx_dma_timer;
+    dma_addr_t dma_phy_pos;    //rx
+#endif
 };
 
 /* conversion functions */

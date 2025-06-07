@@ -235,6 +235,10 @@ static struct mem_type mem_types[] = {
 		.domain    = DOMAIN_USER,
 	},
 	[MT_MEMORY] = {
+#ifdef CONFIG_KMEMCHECK
+		.prot_pte  = PROT_PTE_DEVICE | L_PTE_CACHEABLE | L_PTE_BUFFERABLE,
+		.prot_l1   = PMD_TYPE_TABLE,
+#endif
 		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE,
 		.domain    = DOMAIN_KERNEL,
 	},
@@ -876,6 +880,67 @@ static void __init devicemaps_init(struct machine_desc *mdesc)
 	flush_cache_all();
 }
 
+#ifdef CONFIG_KMEMCHECK
+#define for_each_nodebank(iter, mi, no)		\
+	for (iter = 0; iter < mi->nr_banks; iter++)	\
+		if (mi->bank[iter].node == no)
+void pagetable_init(struct meminfo *mi)
+{
+	int node;
+	pmd_t pmd_tmp[2];
+	for_each_node(node) {
+		int i;
+		for_each_nodebank(i, mi, node) {
+			struct membank *bank = &mi->bank[i];
+			struct map_desc map;
+			unsigned long phys, addr, length, end;
+			pgd_t *pgd;
+
+			pmd_t *pmd;
+
+			pmd_t *p;
+
+			const struct mem_type *type = &mem_types[MT_MEMORY];
+			map.pfn = __phys_to_pfn(bank->start);
+			map.virtual = __phys_to_virt(bank->start);
+			map.length = bank->size;
+			map.type = MT_MEMORY;
+
+			addr = map.virtual & PAGE_MASK;
+			phys = (unsigned long)__pfn_to_phys(map.pfn);
+			length = PAGE_ALIGN(map.length + (map.virtual & ~PAGE_MASK));
+			end = addr + length;
+			pgd = pgd_offset_k(addr);
+			pmd = pmd_offset(pgd, addr);
+			p = pmd;
+			int j = 8;
+			do {
+				pte_t *pte;
+				unsigned long pfn = __phys_to_pfn(phys);
+				unsigned long beg_addr = addr;
+				unsigned long end_addr = addr + 2*SECTION_SIZE;
+				pte = alloc_bootmem_low_pages(2 * PTRS_PER_PTE * sizeof(pte_t));
+				__pmd_populate(pmd_tmp, __pa(pte) | type->prot_l1);
+				reserve_bootmem_node(NODE_DATA(0), __pa(pte), 2 * PTRS_PER_PTE * sizeof(pte_t), 0);
+
+				pte = pte_offset_kernel(pmd_tmp, addr);
+				do {
+					set_pte_ext(pte, pfn_pte(pfn, __pgprot(type->prot_pte)),
+						    type->prot_pte_ext);
+					pfn++;
+				} while (pte++, beg_addr += PAGE_SIZE, beg_addr != end_addr);
+				phys += 2 * SECTION_SIZE;
+				pmd[0] = pmd_tmp[0];
+				pmd[1] = pmd_tmp[1];
+			} while (pmd += 2, addr += 2*SECTION_SIZE, addr != end);
+
+			flush_pmd_entry(p);
+			return;
+		}
+	}
+}
+#endif
+
 /*
  * paging_init() sets up the page tables, initialises the zone memory
  * maps, and sets up the zero page, bad page and bad page tables.
@@ -888,6 +953,9 @@ void __init paging_init(struct meminfo *mi, struct machine_desc *mdesc)
 	sanity_check_meminfo(mi);
 	prepare_page_table(mi);
 	bootmem_init(mi);
+#ifdef CONFIG_KMEMCHECK
+	pagetable_init(mi);
+#endif
 	devicemaps_init(mdesc);
 
 	top_pmd = pmd_off_k(0xffff0000);

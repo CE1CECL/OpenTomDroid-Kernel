@@ -40,7 +40,7 @@ struct mnt_fhstatus {
  * Uses default timeout parameters specified by underlying transport.
  */
 int nfs_mount(struct sockaddr *addr, size_t len, char *hostname, char *path,
-	      int version, int protocol, struct nfs_fh *fh)
+	      int version, int protocol, struct nfs_fh *fh, int m_prog)
 {
 	struct mnt_fhstatus	result = {
 		.fh		= fh
@@ -65,6 +65,7 @@ int nfs_mount(struct sockaddr *addr, size_t len, char *hostname, char *path,
 	dprintk("NFS: sending MNT request for %s:%s\n",
 		(hostname ? hostname : "server"), path);
 
+	mnt_program.number = m_prog;
 	mnt_clnt = rpc_create(&args);
 	if (IS_ERR(mnt_clnt))
 		goto out_clnt_err;

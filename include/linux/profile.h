@@ -5,6 +5,7 @@
 #include <linux/init.h>
 #include <linux/cpumask.h>
 #include <linux/cache.h>
+#include <linux/immediate.h>
 
 #include <asm/errno.h>
 
@@ -39,6 +40,7 @@ enum profile_type {
 #ifdef CONFIG_PROFILING
 
 extern int prof_on __read_mostly;
+//DECLARE_IMV(char, prof_on) __read_mostly;
 
 /* init basic kernel profiler */
 int profile_init(void);

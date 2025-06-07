@@ -44,3 +44,19 @@ config INITRAMFS_ROOT_GID
 	  owned by group root in the initial ramdisk image.
 
 	  If you are not sure, leave it set to "0".
+
+config RD_GZIP
+	bool "Support initial ramdisks compressed using gzip"
+	default y
+	select DECOMPRESS_GZIP
+	help
+	  Support loading of a gzip encoded initial ramdisk or cpio buffer.
+	  If unsure, say Y.
+
+config RD_LZO
+	bool "Support initial ramdisks compressed using LZO"
+	default y
+	select DECOMPRESS_LZO
+	help
+	  Support loading of a LZO encoded initial ramdisk or cpio buffer
+	  If unsure, say N.

@@ -687,6 +687,10 @@ asmlinkage long sys_ppoll(struct pollfd __user *, unsigned int,
 asmlinkage long sys_pipe2(int __user *, int);
 asmlinkage long sys_pipe(int __user *);
 
+asmlinkage long sys_marker(char __user *name, char __user *format,
+			   char __user *state, int reg);
+asmlinkage long sys_trace(int type, uint16_t id, char __user *ubuf);
+
 int kernel_execve(const char *filename, char *const argv[], char *const envp[]);
 
 #endif

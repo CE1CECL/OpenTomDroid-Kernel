@@ -173,7 +173,7 @@ void *flow_cache_lookup(struct flowi *key, u16 family, u8 dir,
 	int cpu;
 
 	local_bh_disable();
-	cpu = smp_processor_id();
+	cpu = get_cpu();
 
 	fle = NULL;
 	/* Packet really early in init?  Making flow_cache_init a
@@ -195,6 +195,7 @@ void *flow_cache_lookup(struct flowi *key, u16 family, u8 dir,
 
 				if (ret)
 					atomic_inc(fle->object_ref);
+				put_cpu();
 				local_bh_enable();
 
 				return ret;
@@ -238,6 +239,7 @@ nocache:
 			if (obj)
 				atomic_inc(fle->object_ref);
 		}
+		put_cpu();
 		local_bh_enable();
 
 		if (err)

@@ -217,8 +217,11 @@ static unsigned int init_chipset_svwks(struct pci_dev *dev)
 				pci_write_config_dword(findev, 0x4C, reg4c);
 				pci_dev_put(findev);
 			}
+#if !defined(CONFIG_PLAT_BCM476X)  
+			/* This is for PC. No these two registers on BCM476X */
 			outb_p(0x06, 0x0c00);
 			dev->irq = inb_p(0x0c01);
+#endif
 		} else {
 			struct pci_dev * findev = NULL;
 			u8 reg41 = 0;

@@ -20,6 +20,10 @@
 #include "bus.h"
 #include "mmc_ops.h"
 
+#ifdef CONFIG_MMC_BCM_SD
+#include "../host/sdhci.h"
+#endif
+
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -93,6 +97,7 @@ static int mmc_decode_cid(struct mmc_card *card)
 		card->cid.prod_name[3]	= UNSTUFF_BITS(resp, 72, 8);
 		card->cid.prod_name[4]	= UNSTUFF_BITS(resp, 64, 8);
 		card->cid.prod_name[5]	= UNSTUFF_BITS(resp, 56, 8);
+		card->cid.prv		= UNSTUFF_BITS(resp, 48, 8);
 		card->cid.serial	= UNSTUFF_BITS(resp, 16, 32);
 		card->cid.month		= UNSTUFF_BITS(resp, 12, 4);
 		card->cid.year		= UNSTUFF_BITS(resp, 8, 4) + 1997;
@@ -121,7 +126,7 @@ static int mmc_decode_csd(struct mmc_card *card)
 	 * v1.2 has extra information in bits 15, 11 and 10.
 	 */
 	csd_struct = UNSTUFF_BITS(resp, 126, 2);
-	if (csd_struct != 1 && csd_struct != 2) {
+	if (csd_struct != 1 && csd_struct != 2 && csd_struct != 3) {
 		printk(KERN_ERR "%s: unrecognised CSD structure version %d\n",
 			mmc_hostname(card->host), csd_struct);
 		return -EINVAL;
@@ -207,8 +212,8 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 		goto out;
 	}
 
-	ext_csd_struct = ext_csd[EXT_CSD_REV];
-	if (ext_csd_struct > 2) {
+	ext_csd_struct = ext_csd[EXT_CSD_VER];
+	if (ext_csd_struct > 3) {
 		printk(KERN_ERR "%s: unrecognised EXT_CSD structure "
 			"version %d\n", mmc_hostname(card->host),
 			ext_csd_struct);
@@ -222,11 +227,19 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 			ext_csd[EXT_CSD_SEC_CNT + 1] << 8 |
 			ext_csd[EXT_CSD_SEC_CNT + 2] << 16 |
 			ext_csd[EXT_CSD_SEC_CNT + 3] << 24;
+#if !defined(CONFIG_PLAT_BCM476X)   // @KP: 090306
 		if (card->ext_csd.sectors)
 			mmc_card_set_blockaddr(card);
+#else
+		// since set block address support will cause address argument in read multi not to be converted to byte address
+		// we need to check to make sure the card support block sector address mode by setting bit 30 in OCR of the
+		// response to SEND_OP_COND (CMD1)
+		if ((card->ext_csd.sectors) && (card->host->ocr & 0x40000000))
+			mmc_card_set_blockaddr(card);
+#endif
 	}
 
-	switch (ext_csd[EXT_CSD_CARD_TYPE]) {
+	switch (ext_csd[EXT_CSD_CARD_TYPE] & EXT_CSD_CARD_TYPE_MASK) {
 	case EXT_CSD_CARD_TYPE_52 | EXT_CSD_CARD_TYPE_26:
 		card->ext_csd.hs_max_dtr = 52000000;
 		break;
@@ -252,6 +265,7 @@ MMC_DEV_ATTR(cid, "%08x%08x%08x%08x\n", card->raw_cid[0], card->raw_cid[1],
 MMC_DEV_ATTR(csd, "%08x%08x%08x%08x\n", card->raw_csd[0], card->raw_csd[1],
 	card->raw_csd[2], card->raw_csd[3]);
 MMC_DEV_ATTR(date, "%02d/%04d\n", card->cid.month, card->cid.year);
+MMC_DEV_ATTR(prv, "0x%x\n", card->cid.prv);
 MMC_DEV_ATTR(fwrev, "0x%x\n", card->cid.fwrev);
 MMC_DEV_ATTR(hwrev, "0x%x\n", card->cid.hwrev);
 MMC_DEV_ATTR(manfid, "0x%06x\n", card->cid.manfid);
@@ -263,6 +277,7 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_cid.attr,
 	&dev_attr_csd.attr,
 	&dev_attr_date.attr,
+	&dev_attr_prv.attr,
 	&dev_attr_fwrev.attr,
 	&dev_attr_hwrev.attr,
 	&dev_attr_manfid.attr,
@@ -311,7 +326,11 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	mmc_go_idle(host);
 
 	/* The extra bit indicates that we support high capacity */
+#if !defined(CONFIG_PLAT_BCM476X)   // @KP: 090306
 	err = mmc_send_op_cond(host, ocr | (1 << 30), NULL);
+#else
+	err = mmc_send_op_cond(host, ocr | (1 << 30), &(host->ocr));
+#endif
 	if (err)
 		goto err;
 
@@ -402,9 +421,36 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	}
 
 	/*
+	 * Activate wide bus (if supported).
+	 */
+    if ((card->csd.mmca_vsn >= CSD_SPEC_VER_4) &&
+	    (host->caps & (MMC_CAP_4_BIT_DATA | MMC_CAP_8_BIT_DATA))) {
+        unsigned ext_csd_bit, bus_width;
+
+        if (host->caps & MMC_CAP_8_BIT_DATA) {
+            ext_csd_bit = EXT_CSD_BUS_WIDTH_8;
+            bus_width = MMC_BUS_WIDTH_8;
+            printk(KERN_INFO "%s: mmc_init_card: Switching to 8-bit bus width\n", mmc_hostname(card->host));
+        } else {
+            ext_csd_bit = EXT_CSD_BUS_WIDTH_4;
+            bus_width = MMC_BUS_WIDTH_4;
+        }
+
+	    err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+		    EXT_CSD_BUS_WIDTH, ext_csd_bit);
+	    if (err)
+		    goto free_card;
+
+	    mmc_set_bus_width(card->host, bus_width);
+    }
+
+	/*
 	 * Activate high speed (if supported)
 	 */
 	if ((card->ext_csd.hs_max_dtr != 0) &&
+#ifdef CONFIG_MMC_BCM_SD
+        (host->f_max > SDHCI_HOST_MAX_CLK_LS_MODE) &&
+#endif
 		(host->caps & MMC_CAP_MMC_HIGHSPEED)) {
 		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 			EXT_CSD_HS_TIMING, 1);
@@ -427,21 +473,11 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	} else if (max_dtr > card->csd.max_dtr) {
 		max_dtr = card->csd.max_dtr;
 	}
+#if (defined(CONFIG_ARCH_FPGA11107))
+   max_dtr >>= 5;                /* Divide clock by 32 for FPGA scale factor */
+#endif
 
 	mmc_set_clock(host, max_dtr);
-
-	/*
-	 * Activate wide bus (if supported).
-	 */
-	if ((card->csd.mmca_vsn >= CSD_SPEC_VER_4) &&
-		(host->caps & MMC_CAP_4_BIT_DATA)) {
-		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
-			EXT_CSD_BUS_WIDTH, EXT_CSD_BUS_WIDTH_4);
-		if (err)
-			goto free_card;
-
-		mmc_set_bus_width(card->host, MMC_BUS_WIDTH_4);
-	}
 
 	if (!oldcard)
 		host->card = card;

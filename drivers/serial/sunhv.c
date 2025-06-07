@@ -99,6 +99,11 @@ static int receive_chars_getchar(struct uart_port *port, struct tty_struct *tty)
 			uart_handle_dcd_change(port, 1);
 		}
 
+#ifdef CONFIG_CONSOLE_POLL
+                if (port->poll_rx_cb && port->poll_rx_cb(c & 255))
+                        continue;
+#endif
+
 		if (tty == NULL) {
 			uart_handle_sysrq_char(port, c);
 			continue;
@@ -123,6 +128,7 @@ static int receive_chars_read(struct uart_port *port, struct tty_struct *tty)
 	while (limit-- > 0) {
 		unsigned long ra = __pa(con_read_page);
 		unsigned long bytes_read, i;
+		unsigned long breaks_received = 0;
 		long stat = sun4v_con_read(ra, PAGE_SIZE, &bytes_read);
 
 		if (stat != HV_EOK) {
@@ -144,20 +150,36 @@ static int receive_chars_read(struct uart_port *port, struct tty_struct *tty)
 			}
 		}
 
+#ifdef CONFIG_CONSOLE_POLL
+                if (port->poll_rx_cb) {
+			for (i = 0; i < bytes_read; i++) {
+				if (port->poll_rx_cb(con_read_page[i] & 255)) {
+					if ((bytes_read - i - 1) != 0)
+						memcpy(&con_read_page[i], &con_read_page[i+1], bytes_read - i - 1);
+					breaks_received++;
+					continue;
+				} else
+					uart_handle_sysrq_char(port, con_read_page[i]);
+			}
+		}
+#endif
+
 		if (hung_up) {
 			hung_up = 0;
 			uart_handle_dcd_change(port, 1);
 		}
 
+#ifndef CONFIG_CONSOLE_POLL
 		for (i = 0; i < bytes_read; i++)
 			uart_handle_sysrq_char(port, con_read_page[i]);
+#endif
 
 		if (tty == NULL)
 			continue;
 
-		port->icount.rx += bytes_read;
+		port->icount.rx += bytes_read - breaks_received;
 
-		tty_insert_flip_string(tty, con_read_page, bytes_read);
+		tty_insert_flip_string(tty, con_read_page, bytes_read - breaks_received);
 	}
 
 	return saw_console_brk;
@@ -309,6 +331,54 @@ static void sunhv_break_ctl(struct uart_port *port, int break_state)
 	}
 }
 
+#ifdef CONFIG_CONSOLE_POLL
+/*
+ * Console polling routines for writing and reading from the uart while
+ * in an interrupt or debug context.
+ */
+
+static int poll_buf[PAGE_SIZE];
+static int poll_buf_cnt;
+static int poll_buf_idx;
+
+static int sunhv_get_poll_char(struct uart_port *port)
+{
+	unsigned long bytes_read;
+	long stat;
+	unsigned long ra;
+	int i;
+
+	if (poll_buf_idx < poll_buf_cnt)
+		return poll_buf[poll_buf_idx++];
+
+	ra = __pa(con_read_page);
+	while (1) {
+		stat = sun4v_con_read(ra, PAGE_SIZE, &bytes_read);
+		if (stat == HV_EOK) {
+			poll_buf_idx = 1;
+			poll_buf_cnt = bytes_read;
+			for (i = 0; i < bytes_read; i++)
+				poll_buf[i] = con_read_page[i];
+			return poll_buf[0];
+		}
+		udelay(1);
+	}
+}
+
+
+static void sunhv_put_poll_char(struct uart_port *port,
+			 unsigned char c)
+{
+	while (1) {
+		long status = sun4v_con_putchar(c);
+		if (status == HV_EOK)
+			break;
+		udelay(1);
+	}
+}
+
+#endif /* CONFIG_CONSOLE_POLL */
+
 /* port->lock is not held.  */
 static int sunhv_startup(struct uart_port *port)
 {
@@ -388,6 +458,10 @@ static struct uart_ops sunhv_pops = {
 	.request_port	= sunhv_request_port,
 	.config_port	= sunhv_config_port,
 	.verify_port	= sunhv_verify_port,
+#ifdef CONFIG_CONSOLE_POLL
+	.poll_get_char = sunhv_get_poll_char,
+	.poll_put_char = sunhv_put_poll_char,
+#endif
 };
 
 static struct uart_driver sunhv_reg = {

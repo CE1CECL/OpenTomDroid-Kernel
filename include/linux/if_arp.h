@@ -87,6 +87,9 @@
 #define ARPHRD_IEEE80211_PRISM 802	/* IEEE 802.11 + Prism2 header  */
 #define ARPHRD_IEEE80211_RADIOTAP 803	/* IEEE 802.11 + radiotap header */
 
+/* CONFIG INTERPEAK >>> */
+#define ARPHRD_MPLS_TUNNEL 131          /* MPLS tunnel interface        */
+/* <<< CONFIG INTERPEAK */
 #define ARPHRD_VOID	  0xFFFF	/* Void type, nothing is known */
 #define ARPHRD_NONE	  0xFFFE	/* zero header length */
 

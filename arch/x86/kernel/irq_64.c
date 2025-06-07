@@ -17,6 +17,12 @@
 #include <asm/io_apic.h>
 #include <asm/idle.h>
 #include <asm/smp.h>
+#include <linux/pps.h>
+
+#ifdef CONFIG_PPS_IRQ_EVENTS
+struct timespec pps_irq_ts[NR_IRQS];
+EXPORT_SYMBOL(pps_irq_ts);
+#endif
 
 #ifdef CONFIG_DEBUG_STACKOVERFLOW
 /*
@@ -51,6 +57,12 @@ asmlinkage unsigned int do_IRQ(struct pt_regs *regs)
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
 	struct irq_desc *desc;
+#ifdef CONFIG_PPS_IRQ_EVENTS
+	struct timespec ts;
+
+	/* Get IRQ timestamps as soon as possible for the PPS layer */
+	getnstimeofday(&ts);
+#endif
 
 	/* high bit used in ret_from_ code  */
 	unsigned vector = ~regs->orig_ax;
@@ -65,9 +77,14 @@ asmlinkage unsigned int do_IRQ(struct pt_regs *regs)
 #endif
 
 	desc = irq_to_desc(irq);
-	if (likely(desc))
+	if (likely(desc)) {
+#ifdef CONFIG_PPS_IRQ_EVENTS
+		/* Then, after sanity check, store the IRQ timestamp */
+		pps_irq_ts[irq] = ts;
+#endif
+
 		generic_handle_irq_desc(irq, desc);
-	else {
+	} else {
 		if (!disable_apic)
 			ack_APIC_irq();
 

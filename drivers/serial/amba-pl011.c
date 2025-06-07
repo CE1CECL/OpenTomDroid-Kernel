@@ -51,9 +51,19 @@
 #include <asm/io.h>
 #include <asm/sizes.h>
 
+#ifdef CONFIG_ARCH_BCMRING
+#define UART_NR			2
+#elif defined(CONFIG_PLAT_BCM476X)
+#define UART_NR			4
+#else
 #define UART_NR			14
+#endif
 
+#if defined(CONFIG_ARCH_BCMRING) || defined(CONFIG_PLAT_BCM476X)
+#define SERIAL_AMBA_MAJOR	4
+#else
 #define SERIAL_AMBA_MAJOR	204
+#endif
 #define SERIAL_AMBA_MINOR	64
 #define SERIAL_AMBA_NR		UART_NR
 
@@ -70,6 +80,7 @@ struct uart_amba_port {
 	struct clk		*clk;
 	unsigned int		im;	/* interrupt mask */
 	unsigned int		old_status;
+	int			modem;
 };
 
 static void pl011_stop_tx(struct uart_port *port)
@@ -705,7 +716,11 @@ static int __init pl011_console_setup(struct console *co, char *options)
 
 static struct uart_driver amba_reg;
 static struct console amba_console = {
+#if defined(CONFIG_ARCH_BCMRING) || defined(CONFIG_PLAT_BCM476X)
+	.name		= "ttyS",
+#else
 	.name		= "ttyAMA",
+#endif
 	.write		= pl011_console_write,
 	.device		= uart_console_device,
 	.setup		= pl011_console_setup,
@@ -721,8 +736,13 @@ static struct console amba_console = {
 
 static struct uart_driver amba_reg = {
 	.owner			= THIS_MODULE,
+#if defined(CONFIG_ARCH_BCMRING) || defined(CONFIG_PLAT_BCM476X)
+	.driver_name		= "ttyS",
+	.dev_name		= "ttyS",
+#else
 	.driver_name		= "ttyAMA",
 	.dev_name		= "ttyAMA",
+#endif
 	.major			= SERIAL_AMBA_MAJOR,
 	.minor			= SERIAL_AMBA_MINOR,
 	.nr			= UART_NR,

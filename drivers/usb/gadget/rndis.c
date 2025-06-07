@@ -293,6 +293,10 @@ gen_ndis_query_resp (int configNr, u32 OID, u8 *buf, unsigned buf_len,
 
 	/* mandatory */
 	case OID_GEN_VENDOR_DESCRIPTION:
+		if (rndis_per_dev_params[configNr].vendorDescr == NULL) {
+			retval = -1;
+			break;
+		}
 		pr_debug("%s: OID_GEN_VENDOR_DESCRIPTION\n", __func__);
 		length = strlen (rndis_per_dev_params [configNr].vendorDescr);
 		memcpy (outbuf,
@@ -303,7 +307,21 @@ gen_ndis_query_resp (int configNr, u32 OID, u8 *buf, unsigned buf_len,
 	case OID_GEN_VENDOR_DRIVER_VERSION:
 		pr_debug("%s: OID_GEN_VENDOR_DRIVER_VERSION\n", __func__);
 		/* Created as LE */
-		*outbuf = rndis_driver_version;
+		*outbuf = cpu_to_le16(rndis_driver_version);
+		length = 2;
+		retval = 0;
+		break;
+
+	case OID_GEN_MAXIMUM_LOOKAHEAD:
+		pr_debug("%s: OID_GEN_MAXIMUM_LOOKAHEAD\n", __func__);
+		*outbuf = cpu_to_le32(1500);
+		retval = 0;
+		break;
+	
+	case OID_GEN_CURRENT_LOOKAHEAD:
+		pr_debug("%s: OID_GEN_CURRENT_LOOKAHEAD\n", __func__);
+		*outbuf = cpu_to_le32(0);
+		/* ignore */
 		retval = 0;
 		break;
 
@@ -343,11 +361,19 @@ gen_ndis_query_resp (int configNr, u32 OID, u8 *buf, unsigned buf_len,
 	case OID_GEN_MAC_OPTIONS:		/* from WinME */
 		pr_debug("%s: OID_GEN_MAC_OPTIONS\n", __func__);
 		*outbuf = __constant_cpu_to_le32(
-			  NDIS_MAC_OPTION_RECEIVE_SERIALIZED
-			| NDIS_MAC_OPTION_FULL_DUPLEX);
+			  NDIS_MAC_OPTION_COPY_LOOKAHEAD_DATA 
+			| NDIS_MAC_OPTION_RECEIVE_SERIALIZED
+			| NDIS_MAC_OPTION_TRANSFERS_NOT_PEND
+//			| NDIS_MAC_OPTION_FULL_DUPLEX
+			| NDIS_MAC_OPTION_NO_LOOPBACK
+			);
 		retval = 0;
 		break;
-
+	case OID_GEN_MAXIMUM_SEND_PACKETS:
+		pr_debug("%s: OID_GEN_MAC_OPTIONS\n", __func__);
+		*outbuf = __constant_cpu_to_le32(16);
+		retval = 0;
+		break;
 	/* statistics OIDs (table 4-2) */
 
 	/* mandatory */
@@ -439,7 +465,7 @@ gen_ndis_query_resp (int configNr, u32 OID, u8 *buf, unsigned buf_len,
 	case OID_802_3_MAXIMUM_LIST_SIZE:
 		pr_debug("%s: OID_802_3_MAXIMUM_LIST_SIZE\n", __func__);
 		/* Multicast base address only */
-		*outbuf = __constant_cpu_to_le32 (1);
+		*outbuf = __constant_cpu_to_le32 (8);
 		retval = 0;
 		break;
 

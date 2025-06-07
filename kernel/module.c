@@ -35,6 +35,7 @@
 #include <linux/cpu.h>
 #include <linux/moduleparam.h>
 #include <linux/errno.h>
+#include <linux/immediate.h>
 #include <linux/err.h>
 #include <linux/vermagic.h>
 #include <linux/notifier.h>
@@ -50,7 +51,13 @@
 #include <linux/license.h>
 #include <asm/sections.h>
 #include <linux/tracepoint.h>
+#include <trace/kernel.h>
 #include <linux/ftrace.h>
+#include <linux/module_hash.h>
+
+#ifndef MAX_MODULE_SIZE
+#define MAX_MODULE_SIZE		(64 * 1024 * 1024)
+#endif
 
 #if 0
 #define DEBUGP printk
@@ -661,6 +668,9 @@ static void module_unload_free(struct module *mod)
 			}
 		}
 	}
+	blocking_notifier_call_chain(&module_notify_list,
+				MODULE_STATE_GOING,
+				mod);
 }
 
 #ifdef CONFIG_MODULE_FORCE_UNLOAD
@@ -1077,7 +1087,10 @@ static unsigned long resolve_symbol(Elf_Shdr *sechdrs,
  * /sys/module/foo/sections stuff
  * J. Corbet <corbet@lwn.net>
  */
-#if defined(CONFIG_KALLSYMS) && defined(CONFIG_SYSFS)
+#ifdef CONFIG_SYSFS
+#if (defined(CONFIG_KGDB_MODULES) || defined(CONFIG_KALLSYMS) || \
+     defined (CONFIG_WR_OCD_DEBUG))
+#ifdef CONFIG_KALLSYMS
 struct module_sect_attr
 {
 	struct module_attribute mattr;
@@ -1099,6 +1112,7 @@ static ssize_t module_sect_show(struct module_attribute *mattr,
 		container_of(mattr, struct module_sect_attr, mattr);
 	return sprintf(buf, "0x%lx\n", sattr->address);
 }
+#endif /* CONFIG_KALLSYMS */
 
 static void free_sect_attrs(struct module_sect_attrs *sect_attrs)
 {
@@ -1145,7 +1159,9 @@ static void add_sect_attrs(struct module *mod, unsigned int nsect,
 		if (sattr->name == NULL)
 			goto out;
 		sect_attrs->nsections++;
+#ifdef CONFIG_KALLSYMS
 		sattr->mattr.show = module_sect_show;
+#endif
 		sattr->mattr.store = NULL;
 		sattr->mattr.attr.name = sattr->name;
 		sattr->mattr.attr.mode = S_IRUGO;
@@ -1173,7 +1189,21 @@ static void remove_sect_attrs(struct module *mod)
 		mod->sect_attrs = NULL;
 	}
 }
+#else /* ! (CONFIG_KALLSYMS || CONFIG_KGDB_MODULES || CONFIG_WR_OCD_DEBUG) */
 
+static inline void add_sect_attrs(struct module *mod, unsigned int nsect,
+		char *sectstrings, Elf_Shdr *sechdrs)
+{
+}
+
+static inline void remove_sect_attrs(struct module *mod)
+{
+}
+
+#endif /* CONFIG_KALLSYMS || CONFIG_KGDB_MODULES || CONFIG_WR_OCD_DEBUG */
+#endif /* CONFIG_SYSFS */
+
+#ifdef CONFIG_KALLSYMS
 /*
  * /sys/module/foo/notes/.section.name gives contents of SHT_NOTE sections.
  */
@@ -1267,18 +1297,7 @@ static void remove_notes_attrs(struct module *mod)
 	if (mod->notes_attrs)
 		free_notes_attrs(mod->notes_attrs, mod->notes_attrs->notes);
 }
-
 #else
-
-static inline void add_sect_attrs(struct module *mod, unsigned int nsect,
-		char *sectstrings, Elf_Shdr *sechdrs)
-{
-}
-
-static inline void remove_sect_attrs(struct module *mod)
-{
-}
-
 static inline void add_notes_attrs(struct module *mod, unsigned int nsect,
 				   char *sectstrings, Elf_Shdr *sechdrs)
 {
@@ -1433,6 +1452,8 @@ static int __unlink_module(void *_mod)
 /* Free a module, remove from lists, etc (must hold module_mutex). */
 static void free_module(struct module *mod)
 {
+	trace_kernel_module_free(mod);
+
 	/* Delete from various lists */
 	stop_machine(__unlink_module, mod, NULL);
 	remove_notes_attrs(mod);
@@ -1850,10 +1871,18 @@ static noinline struct module *load_module(void __user *umod,
 	unsigned int unwindex = 0;
 	unsigned int num_kp, num_mcount;
 	struct kernel_param *kp;
+	unsigned int immediateindex;
+	unsigned int verboseindex;
+	struct mod_debug *iter;
+	unsigned long value;
+
+	unsigned int tracepointsindex;
+	unsigned int tracepointsstringsindex;
+	unsigned int mcountindex;
 	struct module *mod;
 	long err = 0;
 	void *percpu = NULL, *ptr = NULL; /* Stops spurious gcc warning */
-	unsigned long *mseg;
+	void *mseg;
 	mm_segment_t old_fs;
 
 	DEBUGP("load_module: umod=%p, len=%lu, uargs=%p\n",
@@ -1863,10 +1892,14 @@ static noinline struct module *load_module(void __user *umod,
 
 	/* Suck in entire file: we'll want most of it. */
 	/* vmalloc barfs on "unusual" numbers.  Check here */
-	if (len > 64 * 1024 * 1024 || (hdr = vmalloc(len)) == NULL)
+	if (len > MAX_MODULE_SIZE || (hdr = vmalloc(len)) == NULL)
 		return ERR_PTR(-ENOMEM);
 	if (copy_from_user(hdr, umod, len) != 0) {
 		err = -EFAULT;
+		goto free_hdr;
+	}
+	if (check_module_hash((char*)hdr, len) != 0) {
+		err = -EPERM;
 		goto free_hdr;
 	}
 
@@ -1933,6 +1966,7 @@ static noinline struct module *load_module(void __user *umod,
 #ifdef ARCH_UNWIND_SECTION_NAME
 	unwindex = find_sec(hdr, sechdrs, secstrings, ARCH_UNWIND_SECTION_NAME);
 #endif
+	immediateindex = find_sec(hdr, sechdrs, secstrings, "__imv");
 
 	/* Don't keep modinfo and version sections. */
 	sechdrs[infoindex].sh_flags &= ~(unsigned long)SHF_ALLOC;
@@ -2099,6 +2133,11 @@ static noinline struct module *load_module(void __user *umod,
 					    &mod->num_gpl_future_syms);
 	mod->gpl_future_crcs = section_addr(hdr, sechdrs, secstrings,
 					    "__kcrctab_gpl_future");
+#ifdef USE_IMMEDIATE
+	mod->immediate = (void *)sechdrs[immediateindex].sh_addr;
+	mod->num_immediate =
+		sechdrs[immediateindex].sh_size / sizeof(*mod->immediate);
+#endif
 
 #ifdef CONFIG_UNUSED_SYMBOLS
 	mod->unused_syms = section_objs(hdr, sechdrs, secstrings,
@@ -2142,6 +2181,16 @@ static noinline struct module *load_module(void __user *umod,
 	}
 #endif
 
+	verboseindex = find_sec(hdr, sechdrs, secstrings, "__verbose");
+
+	tracepointsindex = find_sec(hdr, sechdrs, secstrings, "__tracepoints");
+	tracepointsstringsindex = find_sec(hdr, sechdrs, secstrings,
+					"__tracepoints_strings");
+
+
+	mcountindex = find_sec(hdr, sechdrs, secstrings,
+			       "__mcount_loc");
+
 	/* Now do relocations. */
 	for (i = 1; i < hdr->e_shnum; i++) {
 		const char *strtab = (char *)sechdrs[strindex].sh_addr;
@@ -2163,6 +2212,17 @@ static noinline struct module *load_module(void __user *umod,
 		if (err < 0)
 			goto cleanup;
 	}
+#ifdef CONFIG_DYNAMIC_PRINTK_DEBUG
+	mod->start_verbose = (void *)sechdrs[verboseindex].sh_addr;
+	mod->num_verbose = sechdrs[verboseindex].sh_size /
+				sizeof(*mod->start_verbose);
+#endif
+#ifdef CONFIG_TRACEPOINTS
+	mod->tracepoints = (void *)sechdrs[tracepointsindex].sh_addr;
+	mod->num_tracepoints =
+		sechdrs[tracepointsindex].sh_size / sizeof(*mod->tracepoints);
+#endif
+
 
         /* Find duplicate symbols */
 	err = verify_export_symbols(mod);
@@ -2197,6 +2257,19 @@ static noinline struct module *load_module(void __user *umod,
 			mod->tracepoints + mod->num_tracepoints);
 #endif
 	}
+
+#ifdef CONFIG_DYNAMIC_PRINTK_DEBUG
+	for (value = (unsigned long)mod->start_verbose;
+		value < (unsigned long)mod->start_verbose +
+		(unsigned long)(mod->num_verbose * sizeof(struct mod_debug));
+		value += sizeof(struct mod_debug)) {
+			iter = (struct mod_debug *)value;
+			register_dynamic_debug_module(iter->modname,
+				iter->type,
+				iter->logical_modname,
+				iter->flag_names, iter->hash, iter->hash2);
+	}
+#endif
 
 	/* sechdrs[0].sh_size is always zero */
 	mseg = section_objs(hdr, sechdrs, secstrings, "__mcount_loc",
@@ -2256,6 +2329,8 @@ static noinline struct module *load_module(void __user *umod,
 
 	/* Get rid of temporary copy */
 	vfree(hdr);
+
+	trace_kernel_module_load(mod);
 
 	/* Done! */
 	return mod;
@@ -2349,6 +2424,10 @@ SYSCALL_DEFINE3(init_module, void __user *, umod,
 	/* Drop initial reference. */
 	module_put(mod);
 	unwind_remove_table(mod->unwind_info, 1);
+#ifdef USE_IMMEDIATE
+	imv_unref(mod->immediate, mod->immediate + mod->num_immediate,
+		mod->module_init, mod->init_size);
+#endif
 	module_free(mod, mod->module_init);
 	mod->module_init = NULL;
 	mod->init_size = 0;
@@ -2644,6 +2723,27 @@ static const struct seq_operations modules_op = {
 	.show	= m_show
 };
 
+void list_modules(void *call_data)
+{
+	/* Enumerate loaded modules */
+	struct list_head	*i;
+	struct module		*mod;
+	unsigned long refcount = 0;
+
+	mutex_lock(&module_mutex);
+	list_for_each(i, &modules) {
+		mod = list_entry(i, struct module, list);
+#ifdef CONFIG_MODULE_UNLOAD
+		refcount = local_read(&mod->ref[0].count);
+#endif
+		__trace_mark(0, list_module, call_data,
+				"name %s state %d refcount %lu",
+				mod->name, mod->state, refcount);
+	}
+	mutex_unlock(&module_mutex);
+}
+EXPORT_SYMBOL_GPL(list_modules);
+
 static int modules_open(struct inode *inode, struct file *file)
 {
 	return seq_open(file, &modules_op);
@@ -2766,10 +2866,42 @@ void module_update_markers(void)
 
 	mutex_lock(&module_mutex);
 	list_for_each_entry(mod, &modules, list)
-		if (!mod->taints)
+		if (!(mod->taints & TAINT_FORCED_MODULE))
 			marker_update_probe_range(mod->markers,
 				mod->markers + mod->num_markers);
 	mutex_unlock(&module_mutex);
+}
+
+/*
+ * Returns 0 if current not found.
+ * Returns 1 if current found.
+ */
+int module_get_iter_markers(struct marker_iter *iter)
+{
+	struct module *iter_mod;
+	int found = 0;
+
+	mutex_lock(&module_mutex);
+	list_for_each_entry(iter_mod, &modules, list) {
+		if (!(iter_mod->taints & TAINT_FORCED_MODULE)) {
+			/*
+			 * Sorted module list
+			 */
+			if (iter_mod < iter->module)
+				continue;
+			else if (iter_mod > iter->module)
+				iter->marker = NULL;
+			found = marker_get_iter_range(&iter->marker,
+				iter_mod->markers,
+				iter_mod->markers + iter_mod->num_markers);
+			if (found) {
+				iter->module = iter_mod;
+				break;
+			}
+		}
+	}
+	mutex_unlock(&module_mutex);
+	return found;
 }
 #endif
 
@@ -2818,4 +2950,39 @@ int module_get_iter_tracepoints(struct tracepoint_iter *iter)
 	mutex_unlock(&module_mutex);
 	return found;
 }
+#endif
+
+#ifdef USE_IMMEDIATE
+/**
+ * _module_imv_update - update all immediate values in the kernel
+ *
+ * Iterate on the kernel core and modules to update the immediate values.
+ * Module_mutex must be held be the caller.
+ */
+void _module_imv_update(void)
+{
+	struct module *mod;
+
+	list_for_each_entry(mod, &modules, list) {
+		if (mod->taints)
+			continue;
+		imv_update_range(mod->immediate,
+			mod->immediate + mod->num_immediate);
+	}
+}
+EXPORT_SYMBOL_GPL(_module_imv_update);
+
+/**
+ * module_imv_update - update all immediate values in the kernel
+ *
+ * Iterate on the kernel core and modules to update the immediate values.
+ * Takes module_mutex.
+ */
+void module_imv_update(void)
+{
+	mutex_lock(&module_mutex);
+	_module_imv_update();
+	mutex_unlock(&module_mutex);
+}
+EXPORT_SYMBOL_GPL(module_imv_update);
 #endif

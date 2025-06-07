@@ -88,6 +88,7 @@
  * FAIL           Regulator output has failed.
  * OVER_TEMP      Regulator over temp.
  * FORCE_DISABLE  Regulator shut down by software.
+ * VOLTAGE_CHANGE Regulator voltage changed.
  *
  * NOTE: These events can be OR'ed together when passed into handler.
  */
@@ -98,6 +99,7 @@
 #define REGULATOR_EVENT_FAIL			0x08
 #define REGULATOR_EVENT_OVER_TEMP		0x10
 #define REGULATOR_EVENT_FORCE_DISABLE		0x20
+#define REGULATOR_EVENT_VOLTAGE_CHANGE		0x40
 
 struct regulator;
 
@@ -136,6 +138,8 @@ int regulator_bulk_get(struct device *dev, int num_consumers,
 int regulator_bulk_enable(int num_consumers,
 			  struct regulator_bulk_data *consumers);
 int regulator_bulk_disable(int num_consumers,
+			   struct regulator_bulk_data *consumers);
+int regulator_bulk_force_disable(int num_consumers,
 			   struct regulator_bulk_data *consumers);
 void regulator_bulk_free(int num_consumers,
 			 struct regulator_bulk_data *consumers);

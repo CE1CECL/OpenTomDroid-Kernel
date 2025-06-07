@@ -887,6 +887,15 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 		return;
 	}
 
+    /*
+     * On the EagleRay board which has the 2133-A0, the following test seems
+     * to leave the serial port in loopback mode, which causes all of our
+     * console output to fail. Since we don't have one of these devices
+     * using a #if 0 seemed like the quickest thing to do.
+     *
+     * Dave Hylands - June 14, 2005
+     */
+
 	/*
 	 * Check for a National Semiconductor SuperIO chip.
 	 * Attempt to switch to bank 2, read the value of the LOOP bit
@@ -2328,6 +2337,18 @@ serial8250_set_termios(struct uart_port *port, struct ktermios *termios,
 }
 
 static void
+serial8250_set_ldisc(struct uart_port *port)
+{
+	int line = port->line;
+
+	if (line >= port->info->port.tty->driver->num)
+		return;
+
+	if (port->info->port.tty->ldisc.ops->num == N_PPS)
+		serial8250_enable_ms(port);
+}
+
+static void
 serial8250_pm(struct uart_port *port, unsigned int state,
 	      unsigned int oldstate)
 {
@@ -2538,6 +2559,7 @@ static struct uart_ops serial8250_pops = {
 	.startup	= serial8250_startup,
 	.shutdown	= serial8250_shutdown,
 	.set_termios	= serial8250_set_termios,
+	.set_ldisc	= serial8250_set_ldisc,
 	.pm		= serial8250_pm,
 	.type		= serial8250_type,
 	.release_port	= serial8250_release_port,

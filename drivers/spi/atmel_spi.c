@@ -288,7 +288,7 @@ static void atmel_spi_next_message(struct spi_master *master)
 	spi = msg->spi;
 
 	dev_dbg(master->dev.parent, "start message %p for %s\n",
-			msg, spi->dev.bus_id);
+			msg, dev_name(&spi->dev));
 
 	/* select chip if it's not still active */
 	if (as->stay) {
@@ -590,7 +590,7 @@ static int atmel_spi_setup(struct spi_device *spi)
 	/* chipselect must have been muxed as GPIO (e.g. in board setup) */
 	npcs_pin = (unsigned int)spi->controller_data;
 	if (!spi->controller_state) {
-		ret = gpio_request(npcs_pin, spi->dev.bus_id);
+		ret = gpio_request(npcs_pin, dev_name(&spi->dev));
 		if (ret)
 			return ret;
 		spi->controller_state = (void *)npcs_pin;
@@ -624,7 +624,7 @@ static int atmel_spi_transfer(struct spi_device *spi, struct spi_message *msg)
 	as = spi_master_get_devdata(spi->master);
 
 	dev_dbg(controller, "new message %p submitted for %s\n",
-			msg, spi->dev.bus_id);
+			msg, dev_name(&spi->dev));
 
 	if (unlikely(list_empty(&msg->transfers)
 			|| !spi->max_speed_hz))
@@ -759,7 +759,7 @@ static int __init atmel_spi_probe(struct platform_device *pdev)
 		as->new_1 = 1;
 
 	ret = request_irq(irq, atmel_spi_interrupt, 0,
-			pdev->dev.bus_id, master);
+			dev_name(&pdev->dev), master);
 	if (ret)
 		goto out_unmap_regs;
 

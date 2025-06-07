@@ -344,8 +344,8 @@
 		CALL(sys_readlinkat)
 		CALL(sys_fchmodat)
 		CALL(sys_faccessat)
-/* 335 */	CALL(sys_ni_syscall)		/* eventually pselect6 */
-		CALL(sys_ni_syscall)		/* eventually ppoll */
+/* 335 */	CALL(sys_pselect6)
+		CALL(sys_ppoll)
 		CALL(sys_unshare)
 		CALL(sys_set_robust_list)
 		CALL(sys_get_robust_list)
@@ -355,7 +355,7 @@
 		CALL(sys_vmsplice)
 		CALL(sys_move_pages)
 /* 345 */	CALL(sys_getcpu)
-		CALL(sys_ni_syscall)		/* eventually epoll_pwait */
+		CALL(sys_epoll_pwait)
 		CALL(sys_kexec_load)
 		CALL(sys_utimensat)
 		CALL(sys_signalfd)

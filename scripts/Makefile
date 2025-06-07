@@ -7,11 +7,15 @@
 # conmakehash:   Create chartable
 # conmakehash:	 Create arrays for initializing the kernel console tables
 
+
+HOSTLOADLIBES_sign_image = -lssl
+
 hostprogs-$(CONFIG_KALLSYMS)     += kallsyms
 hostprogs-$(CONFIG_LOGO)         += pnmtologo
 hostprogs-$(CONFIG_VT)           += conmakehash
 hostprogs-$(CONFIG_PROM_CONSOLE) += conmakehash
 hostprogs-$(CONFIG_IKCONFIG)     += bin2c
+hostprogs-$(CONFIG_SIGN_ZIMAGE)  += sign_image
 
 always		:= $(hostprogs-y) $(hostprogs-m)
 

@@ -82,11 +82,34 @@ static struct nand_ecclayout nand_oob_64 = {
 		 .length = 38}}
 };
 
+static struct nand_ecclayout nand_oob_128 = {
+        .eccbytes = 104,
+        .eccpos = {
+                   24, 25, 26, 27, 28, 29, 30, 31,
+                   32, 33, 34, 35, 36, 37, 38, 39,
+                   40, 41, 42, 43, 44, 45, 46, 47,
+                   48, 49, 50, 51, 52, 53, 54, 55,
+                   56, 57, 58, 59, 60, 61, 62, 63,
+                   64, 65, 66, 67, 68, 69, 70, 71,
+                   72, 73, 74, 75, 76, 77, 78, 79,
+                   80, 81, 82, 83, 84, 85, 86, 87,
+                   88, 89, 90, 91, 92, 93, 94, 95,
+                   96, 97, 98, 99, 100, 101, 102, 103,
+                   104, 105, 106, 107, 108, 109, 110, 111,
+                   112, 113, 114, 115, 116, 117, 118, 119,
+                   120, 121, 122, 123, 124, 125, 126, 127},
+        .oobfree = {
+                {.offset = 2,
+                 .length = 22}}
+};
+
 static int nand_get_device(struct nand_chip *chip, struct mtd_info *mtd,
 			   int new_state);
 
 static int nand_do_write_oob(struct mtd_info *mtd, loff_t to,
 			     struct mtd_oob_ops *ops);
+
+static bool ecc_no_check = false;
 
 /*
  * For devices which display every fart in the system on a separate LED. Is
@@ -137,7 +160,7 @@ static uint8_t nand_read_byte(struct mtd_info *mtd)
 static uint8_t nand_read_byte16(struct mtd_info *mtd)
 {
 	struct nand_chip *chip = mtd->priv;
-	return (uint8_t) cpu_to_le16(readw(chip->IO_ADDR_R));
+	return (uint8_t) readw(chip->IO_ADDR_R);
 }
 
 /**
@@ -304,6 +327,10 @@ static int nand_block_bad(struct mtd_info *mtd, loff_t ofs, int getchip)
 	struct nand_chip *chip = mtd->priv;
 	u16 bad;
 
+	/* mod for samsung mlc */
+	if ((chip->cellinfo >> 2) & 0x3)
+		ofs += (mtd->erasesize - mtd->writesize);
+
 	page = (int)(ofs >> chip->page_shift) & chip->pagemask;
 
 	if (getchip) {
@@ -318,7 +345,7 @@ static int nand_block_bad(struct mtd_info *mtd, loff_t ofs, int getchip)
 	if (chip->options & NAND_BUSWIDTH_16) {
 		chip->cmdfunc(mtd, NAND_CMD_READOOB, chip->badblockpos & 0xFE,
 			      page);
-		bad = cpu_to_le16(chip->read_word(mtd));
+		bad = chip->read_word(mtd);
 		if (chip->badblockpos & 0x1)
 			bad >>= 8;
 		if ((bad & 0xFF) != 0xff)
@@ -406,7 +433,6 @@ static int nand_block_checkbad(struct mtd_info *mtd, loff_t ofs, int getchip,
 			       int allowbbt)
 {
 	struct nand_chip *chip = mtd->priv;
-
 	if (!chip->bbt)
 		return chip->block_bad(mtd, ofs, getchip);
 
@@ -913,7 +939,11 @@ static int nand_read_page_hwecc(struct mtd_info *mtd, struct nand_chip *chip,
 	for (i = 0 ; eccsteps; eccsteps--, i += eccbytes, p += eccsize) {
 		int stat;
 
-		stat = chip->ecc.correct(mtd, p, &ecc_code[i], &ecc_calc[i]);
+ 		if (!ecc_no_check)
+			stat = chip->ecc.correct(mtd, p, &ecc_code[i], &ecc_calc[i]);
+  		else
+       			stat = 0;
+ 
 		if (stat < 0)
 			mtd->ecc_stats.failed++;
 		else
@@ -953,7 +983,10 @@ static int nand_read_page_syndrome(struct mtd_info *mtd, struct nand_chip *chip,
 
 		chip->ecc.hwctl(mtd, NAND_ECC_READSYN);
 		chip->read_buf(mtd, oob, eccbytes);
+      if (!ecc_no_check)
 		stat = chip->ecc.correct(mtd, p, oob, NULL);
+      else
+         stat = 0;
 
 		if (stat < 0)
 			mtd->ecc_stats.failed++;
@@ -1058,6 +1091,11 @@ static int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 
 	buf = ops->datbuf;
 	oob = ops->oobbuf;
+
+   if (from < mtd->erasesize)
+      ecc_no_check = true; /* block 0 is never bad */
+   else
+      ecc_no_check = false;
 
 	while(1) {
 		bytes = min(mtd->writesize - col, readlen);
@@ -2549,6 +2587,9 @@ int nand_scan_tail(struct mtd_info *mtd)
 			break;
 		case 64:
 			chip->ecc.layout = &nand_oob_64;
+			break;
+		case 128:
+			chip->ecc.layout = &nand_oob_128;
 			break;
 		default:
 			printk(KERN_WARNING "No oob scheme defined for "

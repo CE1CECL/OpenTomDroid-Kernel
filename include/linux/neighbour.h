@@ -21,6 +21,12 @@ enum
 	NDA_LLADDR,
 	NDA_CACHEINFO,
 	NDA_PROBES,
+	/* CONFIG INTERPEAK >>> */
+	NDA_VR = 32,
+	NDA_TABLE,
+	NDA_TABLE_NAME,
+	NDA_REALIFINDEX,
+	/* <<< CONFIG INTERPEAK */
 	__NDA_MAX
 };
 
@@ -32,6 +38,9 @@ enum
 
 #define NTF_PROXY	0x08	/* == ATF_PUBL */
 #define NTF_ROUTER	0x80
+/* CONFIG INTERPEAK >>>*/
+#define NTF_GRAT    0x10
+/* <<< CONFIG INTERPEAK */
 
 /*
  *	Neighbor Cache Entry States.

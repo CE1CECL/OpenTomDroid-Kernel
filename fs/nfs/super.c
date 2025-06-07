@@ -1369,7 +1369,8 @@ static int nfs_try_mount(struct nfs_parsed_mount_data *args,
 			   args->nfs_server.export_path,
 			   args->mount_server.version,
 			   args->mount_server.protocol,
-			   root_fh);
+			   root_fh,
+			   NFS_MNT_PROGRAM);
 	if (status == 0)
 		return 0;
 
@@ -1550,6 +1551,7 @@ static int nfs_validate_mount_data(void *options,
 	args->nfs_server.port	= 0;	/* autobind unless user sets port */
 	args->nfs_server.protocol = XPRT_TRANSPORT_TCP;
 	args->auth_flavors[0]	= RPC_AUTH_UNIX;
+	args->nfs_prog		= NFS_PROGRAM;
 
 	switch (data->version) {
 	case 1:
@@ -1566,6 +1568,8 @@ static int nfs_validate_mount_data(void *options,
 			goto out_no_sec;
 	case 5:
 		memset(data->context, 0, sizeof(data->context));
+	case 7:
+		args->nfs_prog = (data->version >= 7) ? data->nfs_prog : NFS_PROGRAM;
 	case 6:
 		if (data->flags & NFS_MOUNT_VER3) {
 			if (data->root.size > NFS3_FHSIZE || data->root.size == 0)

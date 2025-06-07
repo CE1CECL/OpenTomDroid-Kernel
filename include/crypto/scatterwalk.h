@@ -39,12 +39,12 @@ static inline enum km_type crypto_kmap_type(int out)
 
 static inline void *crypto_kmap(struct page *page, int out)
 {
-	return kmap_atomic(page, crypto_kmap_type(out));
+	return kmap(page);
 }
 
 static inline void crypto_kunmap(void *vaddr, int out)
 {
-	kunmap_atomic(vaddr, crypto_kmap_type(out));
+	kunmap(vaddr);
 }
 
 static inline void crypto_yield(u32 flags)

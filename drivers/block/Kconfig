@@ -264,6 +264,12 @@ config BLK_DEV_CRYPTOLOOP
 	  instead, which can be configured to be on-disk compatible with the
 	  cryptoloop device.
 
+config BLK_DEV_SIGNEDLOOP
+	tristate "Signedloop Support"
+	depends on BLK_DEV_LOOP
+	select CRYPTO
+	select CRYPTO_SHA1
+
 config BLK_DEV_NBD
 	tristate "Network block device support"
 	depends on NET

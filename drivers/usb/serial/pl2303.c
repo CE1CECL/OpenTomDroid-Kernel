@@ -988,6 +988,20 @@ exit:
 			__func__, retval);
 }
 
+#ifdef CONFIG_CONSOLE_POLL
+static int pl2303_proc_pollrx(struct usb_serial_port *port,
+			      unsigned char *data, int count)
+{
+	int char_consumed = 0;
+	int i;
+
+	for (i = 0; i < count; i++)
+		if (port->poll_rx_cb(data[i]))
+			char_consumed = 1;
+	return char_consumed;
+}
+#endif
+
 static void pl2303_read_bulk_callback(struct urb *urb)
 {
 	struct usb_serial_port *port =  urb->context;
@@ -1049,6 +1063,10 @@ static void pl2303_read_bulk_callback(struct urb *urb)
 	dbg("%s - tty_flag = %d", __func__, tty_flag);
 
 	tty = tty_port_tty_get(&port->port);
+#ifdef CONFIG_CONSOLE_POLL
+	if (!(port->poll_rx_cb &&
+	      pl2303_proc_pollrx(port, data, urb->actual_length)))
+#endif
 	if (tty && urb->actual_length) {
 		tty_buffer_request_room(tty, urb->actual_length + 1);
 		/* overrun is special, not associated with a char */
@@ -1113,6 +1131,14 @@ static void pl2303_write_bulk_callback(struct urb *urb)
 	pl2303_send(port);
 }
 
+#ifdef CONFIG_CONSOLE_POLL
+static int pl2303_poll_get_char(struct usb_serial_port *port)
+{
+	/* Indicate this driver requires high level polling */
+	return -2;
+}
+#endif /* CONFIG_CONSOLE_POLL */
+
 /* All of the device info needed for the PL2303 SIO serial converter */
 static struct usb_serial_driver pl2303_device = {
 	.driver = {
@@ -1137,6 +1163,9 @@ static struct usb_serial_driver pl2303_device = {
 	.chars_in_buffer =	pl2303_chars_in_buffer,
 	.attach =		pl2303_startup,
 	.shutdown =		pl2303_shutdown,
+#ifdef CONFIG_CONSOLE_POLL
+	.poll_get_char = pl2303_poll_get_char,
+#endif
 };
 
 static int __init pl2303_init(void)

@@ -5,6 +5,7 @@
 #include <linux/smp_lock.h>
 #include <linux/lockdep.h>
 #include <asm/hardirq.h>
+#include <asm/ftrace.h>
 #include <asm/system.h>
 
 /*
@@ -22,9 +23,12 @@
  * PREEMPT_MASK: 0x000000ff
  * SOFTIRQ_MASK: 0x0000ff00
  * HARDIRQ_MASK: 0x0fff0000
+ * HARDNMI_MASK: 0x40000000
  */
 #define PREEMPT_BITS	8
 #define SOFTIRQ_BITS	8
+
+#define HARDNMI_BITS	1
 
 #ifndef HARDIRQ_BITS
 #define HARDIRQ_BITS	12
@@ -45,16 +49,19 @@
 #define PREEMPT_SHIFT	0
 #define SOFTIRQ_SHIFT	(PREEMPT_SHIFT + PREEMPT_BITS)
 #define HARDIRQ_SHIFT	(SOFTIRQ_SHIFT + SOFTIRQ_BITS)
+#define HARDNMI_SHIFT	(30)
 
 #define __IRQ_MASK(x)	((1UL << (x))-1)
 
 #define PREEMPT_MASK	(__IRQ_MASK(PREEMPT_BITS) << PREEMPT_SHIFT)
 #define SOFTIRQ_MASK	(__IRQ_MASK(SOFTIRQ_BITS) << SOFTIRQ_SHIFT)
 #define HARDIRQ_MASK	(__IRQ_MASK(HARDIRQ_BITS) << HARDIRQ_SHIFT)
+#define HARDNMI_MASK	(__IRQ_MASK(HARDNMI_BITS) << HARDNMI_SHIFT)
 
 #define PREEMPT_OFFSET	(1UL << PREEMPT_SHIFT)
 #define SOFTIRQ_OFFSET	(1UL << SOFTIRQ_SHIFT)
 #define HARDIRQ_OFFSET	(1UL << HARDIRQ_SHIFT)
+#define HARDNMI_OFFSET	(1UL << HARDNMI_SHIFT)
 
 #if PREEMPT_ACTIVE < (1 << (HARDIRQ_SHIFT + HARDIRQ_BITS))
 #error PREEMPT_ACTIVE is too low!
@@ -62,7 +69,9 @@
 
 #define hardirq_count()	(preempt_count() & HARDIRQ_MASK)
 #define softirq_count()	(preempt_count() & SOFTIRQ_MASK)
-#define irq_count()	(preempt_count() & (HARDIRQ_MASK | SOFTIRQ_MASK))
+#define irq_count() \
+	(preempt_count() & (HARDNMI_MASK | HARDIRQ_MASK | SOFTIRQ_MASK))
+#define hardnmi_count()	(preempt_count() & HARDNMI_MASK)
 
 /*
  * Are we doing bottom half or hardware interrupt processing?
@@ -71,6 +80,7 @@
 #define in_irq()		(hardirq_count())
 #define in_softirq()		(softirq_count())
 #define in_interrupt()		(irq_count())
+#define in_nmi()		(hardnmi_count())
 
 #if defined(CONFIG_PREEMPT)
 # define PREEMPT_INATOMIC_BASE kernel_locked()
@@ -115,6 +125,7 @@ struct task_struct;
 #ifndef CONFIG_VIRT_CPU_ACCOUNTING
 static inline void account_system_vtime(struct task_struct *tsk)
 {
+   (void)tsk;
 }
 #endif
 
@@ -161,7 +172,17 @@ extern void irq_enter(void);
  */
 extern void irq_exit(void);
 
-#define nmi_enter()		do { lockdep_off(); __irq_enter(); } while (0)
-#define nmi_exit()		do { __irq_exit(); lockdep_on(); } while (0)
+#define nmi_enter()				\
+	do {					\
+		ftrace_nmi_enter();		\
+		lockdep_off();			\
+		__irq_enter();			\
+	} while (0)
+#define nmi_exit()				\
+	do {					\
+		__irq_exit();			\
+		lockdep_on();			\
+		ftrace_nmi_exit();		\
+	} while (0)
 
 #endif /* LINUX_HARDIRQ_H */

@@ -37,6 +37,7 @@
 #define UART_IIR_THRI		0x02 /* Transmitter holding register empty */
 #define UART_IIR_RDI		0x04 /* Receiver data interrupt */
 #define UART_IIR_RLSI		0x06 /* Receiver line status interrupt */
+#define UART_IIR_BUSY		0x07 /* Busy detect indication interrupt */
 
 #define UART_IIR_BUSY		0x07 /* DesignWare APB Busy Detect */
 
@@ -111,6 +112,7 @@
 #define UART_MCR_DTR		0x01 /* DTR complement */
 
 #define UART_LSR	5	/* In:  Line Status Register */
+#define UART_LSR_RFE		0x80 /* Rx FIFO Error (BE, FE, or PE) */
 #define UART_LSR_TEMT		0x40 /* Transmitter empty */
 #define UART_LSR_THRE		0x20 /* Transmit-hold-register empty */
 #define UART_LSR_BI		0x10 /* Break interrupt indicator */

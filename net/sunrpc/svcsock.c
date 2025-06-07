@@ -52,9 +52,14 @@
 
 #define RPCDBG_FACILITY	RPCDBG_SVCXPRT
 
-
+#ifdef CONFIG_INTERPEAK
+static struct svc_sock *svc_setup_socket(struct svc_serv *, struct socket *,
+					 unsigned short port, int *errp,
+					 int flags);
+#else
 static struct svc_sock *svc_setup_socket(struct svc_serv *, struct socket *,
 					 int *errp, int flags);
+#endif
 static void		svc_udp_data_ready(struct sock *, int);
 static int		svc_udp_recvfrom(struct svc_rqst *);
 static int		svc_udp_sendto(struct svc_rqst *);
@@ -333,14 +338,20 @@ static int svc_recvfrom(struct svc_rqst *rqstp, struct kvec *iov, int nr,
 static void svc_sock_setbufsize(struct socket *sock, unsigned int snd,
 				unsigned int rcv)
 {
-#if 0
+#ifdef CONFIG_INTERPEAK
+	/*
+	 * Necessary to use setsockopts to make ipnet
+	 * aware of the buffer sizes
+	 */
 	mm_segment_t	oldfs;
+
 	oldfs = get_fs(); set_fs(KERNEL_DS);
 	sock_setsockopt(sock, SOL_SOCKET, SO_SNDBUF,
 			(char*)&snd, sizeof(snd));
 	sock_setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
 			(char*)&rcv, sizeof(rcv));
-#else
+	set_fs(oldfs);
+#endif
 	/* sock_setsockopt limits use to sysctl_?mem_max,
 	 * which isn't acceptable.  Until that is made conditional
 	 * on not having CAP_SYS_RESOURCE or similar, we go direct...
@@ -351,7 +362,6 @@ static void svc_sock_setbufsize(struct socket *sock, unsigned int snd,
 	sock->sk->sk_rcvbuf = rcv * 2;
 	sock->sk->sk_userlocks |= SOCK_SNDBUF_LOCK|SOCK_RCVBUF_LOCK;
 	release_sock(sock->sk);
-#endif
 }
 /*
  * INET callback when data has been received on the socket.
@@ -434,6 +444,9 @@ static int svc_udp_recvfrom(struct svc_rqst *rqstp)
 	int		err, len;
 	struct msghdr msg = {
 		.msg_name = svc_addr(rqstp),
+#ifdef CONFIG_INTERPEAK
+		.msg_namelen = sizeof(struct sockaddr_storage),
+#endif
 		.msg_control = cmh,
 		.msg_controllen = sizeof(buffer),
 		.msg_flags = MSG_DONTWAIT,
@@ -763,8 +776,17 @@ static struct svc_xprt *svc_tcp_accept(struct svc_xprt *xprt)
 	 */
 	newsock->sk->sk_sndtimeo = HZ*30;
 
+#ifdef CONFIG_INTERPEAK
+	if (!(newsvsk =
+	      svc_setup_socket(serv,
+			       newsock,
+			       ntohs(((struct sockaddr_in*)sin)->sin_port),
+			       &err,
+			       (SVC_SOCK_ANONYMOUS | SVC_SOCK_TEMPORARY))))
+#else
 	if (!(newsvsk = svc_setup_socket(serv, newsock, &err,
 				 (SVC_SOCK_ANONYMOUS | SVC_SOCK_TEMPORARY))))
+#endif
 		goto failed;
 	svc_xprt_set_remote(&newsvsk->sk_xprt, sin, slen);
 	err = kernel_getsockname(newsock, sin, &slen);
@@ -884,7 +906,12 @@ static int svc_tcp_recvfrom(struct svc_rqst *rqstp)
 	pnum = 1;
 	while (vlen < len) {
 		vec[pnum].iov_base = page_address(rqstp->rq_pages[pnum]);
+#ifdef CONFIG_INTERPEAK
+		vec[pnum].iov_len =
+			vlen + PAGE_SIZE < len ? PAGE_SIZE : len - vlen;
+#else
 		vec[pnum].iov_len = PAGE_SIZE;
+#endif
 		pnum++;
 		vlen += PAGE_SIZE;
 	}
@@ -1107,14 +1134,40 @@ EXPORT_SYMBOL(svc_sock_update_bufs);
  * Initialize socket for RPC use and create svc_sock struct
  * XXX: May want to setsockopt SO_SNDBUF and SO_RCVBUF.
  */
+#ifdef CONFIG_INTERPEAK
+static struct svc_sock *svc_setup_socket(struct svc_serv *serv,
+						struct socket *sock,
+						unsigned short port,
+						int *errp, int flags)
+#else
 static struct svc_sock *svc_setup_socket(struct svc_serv *serv,
 						struct socket *sock,
 						int *errp, int flags)
+#endif
 {
 	struct svc_sock	*svsk;
 	struct sock	*inet;
 	int		pmap_register = !(flags & SVC_SOCK_ANONYMOUS);
 	int		val;
+
+#ifdef CONFIG_INTERPEAK
+	if (port == 0) {
+	        size_t sz = sizeof(struct sockaddr_in);
+		struct sockaddr_in sin;
+
+		/* At least NFS lockd lets the stack decide the port to bind
+		   to. Need to get that port number */
+
+		*errp = sock->ops->getname(sock,
+					   (struct sockaddr *)&sin,
+					   &sz, 0);
+
+		if (*errp < 0)
+		  return NULL;
+
+		port = ntohs(sin.sin_port);
+	}
+#endif /* CONFIG_INTERPEAK */
 
 	dprintk("svc: svc_setup_socket %p\n", sock);
 	if (!(svsk = kzalloc(sizeof(*svsk), GFP_KERNEL))) {
@@ -1126,9 +1179,12 @@ static struct svc_sock *svc_setup_socket(struct svc_serv *serv,
 
 	/* Register socket with portmapper */
 	if (*errp >= 0 && pmap_register)
+#ifdef CONFIG_INTERPEAK
+		*errp = svc_register(serv, inet->sk_protocol, port);
+#else
 		*errp = svc_register(serv, inet->sk_protocol,
 				     ntohs(inet_sk(inet)->sport));
-
+#endif
 	if (*errp < 0) {
 		kfree(svsk);
 		return NULL;
@@ -1186,8 +1242,13 @@ int svc_addsock(struct svc_serv *serv,
 		if (!try_module_get(THIS_MODULE))
 			err = -ENOENT;
 		else
+#ifdef CONFIG_INTERPEAK
+			svsk = svc_setup_socket(serv, so, 0, &err,
+						SVC_SOCK_DEFAULTS);
+#else
 			svsk = svc_setup_socket(serv, so, &err,
 						SVC_SOCK_DEFAULTS);
+#endif
 		if (svsk) {
 			struct sockaddr_storage addr;
 			struct sockaddr *sin = (struct sockaddr *)&addr;
@@ -1261,7 +1322,16 @@ static struct svc_xprt *svc_create_socket(struct svc_serv *serv,
 			goto bummer;
 	}
 
+#ifdef CONFIG_INTERPEAK
+	if ((svsk =
+	     svc_setup_socket(serv,
+			      sock,
+			      ntohs(((struct sockaddr_in*)sin)->sin_port),
+			      &error,
+			      flags)) != NULL) {
+#else
 	if ((svsk = svc_setup_socket(serv, sock, &error, flags)) != NULL) {
+#endif
 		svc_xprt_set_local(&svsk->sk_xprt, newsin, newlen);
 		return (struct svc_xprt *)svsk;
 	}

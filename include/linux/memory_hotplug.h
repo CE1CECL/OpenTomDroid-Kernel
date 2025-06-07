@@ -162,21 +162,23 @@ extern void put_page_bootmem(struct page *page);
 /*
  * Stub functions for when hotplug is off
  */
-static inline void pgdat_resize_lock(struct pglist_data *p, unsigned long *f) {}
-static inline void pgdat_resize_unlock(struct pglist_data *p, unsigned long *f) {}
-static inline void pgdat_resize_init(struct pglist_data *pgdat) {}
+static inline void pgdat_resize_lock(struct pglist_data *p, unsigned long *f) {(void)p;(void)f;}
+static inline void pgdat_resize_unlock(struct pglist_data *p, unsigned long *f) {(void)p;(void)f;}
+static inline void pgdat_resize_init(struct pglist_data *pgdat) {(void)pgdat;}
 
 static inline unsigned zone_span_seqbegin(struct zone *zone)
 {
+   (void)zone;
 	return 0;
 }
 static inline int zone_span_seqretry(struct zone *zone, unsigned iv)
 {
+   (void)zone;(void)iv;
 	return 0;
 }
-static inline void zone_span_writelock(struct zone *zone) {}
-static inline void zone_span_writeunlock(struct zone *zone) {}
-static inline void zone_seqlock_init(struct zone *zone) {}
+static inline void zone_span_writelock(struct zone *zone) {(void)zone;}
+static inline void zone_span_writeunlock(struct zone *zone) {(void)zone;}
+static inline void zone_seqlock_init(struct zone *zone) {(void)zone;}
 
 static inline int mhp_notimplemented(const char *func)
 {
@@ -207,6 +209,8 @@ extern int is_mem_section_removable(unsigned long pfn, unsigned long nr_pages);
 static inline int is_mem_section_removable(unsigned long pfn,
 					unsigned long nr_pages)
 {
+   (void)pfn;
+   (void)nr_pages;
 	return 0;
 }
 #endif /* CONFIG_MEMORY_HOTREMOVE */

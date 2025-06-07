@@ -77,6 +77,14 @@ struct in_addr {
 #define IP_PASSSEC	18
 #define IP_TRANSPARENT	19
 
+/* CONFIG INTERPEAK >>> */
+#define IP_DONTFRAG 22
+#define IP_UDP_X_CHKSUM 40
+#define IP_NEXTHOP 52
+#define IP_X_SENDERLINKADDR 100
+#define IP_X_VRID 101
+/* <<< CONFIG INTERPEAK */
+
 /* BSD compatibility */
 #define IP_RECVRETOPTS	IP_RETOPTS
 

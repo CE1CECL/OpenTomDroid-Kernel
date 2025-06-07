@@ -27,6 +27,12 @@ obj-$(CONFIG_I2C_POWERMAC)	+= i2c-powermac.o
 # Embebbed system I2C/SMBus host controller drivers
 obj-$(CONFIG_I2C_AT91)		+= i2c-at91.o
 obj-$(CONFIG_I2C_AU1550)	+= i2c-au1550.o
+obj-$(CONFIG_I2C_BCM4760)	+= i2c-bcm4760.o
+ifeq ($(CONFIG_I2C_BCM11XX_SWMODE),y)
+obj-$(CONFIG_I2C_BCM11XX)	+= i2c-bcm11xx-sw.o
+else
+obj-$(CONFIG_I2C_BCM11XX)	+= i2c-bcm11xx-hw.o
+endif
 obj-$(CONFIG_I2C_BLACKFIN_TWI)	+= i2c-bfin-twi.o
 obj-$(CONFIG_I2C_CPM)		+= i2c-cpm.o
 obj-$(CONFIG_I2C_DAVINCI)	+= i2c-davinci.o

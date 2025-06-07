@@ -38,6 +38,7 @@ struct trace_entry {
 	unsigned char		flags;
 	unsigned char		preempt_count;
 	int			pid;
+	int			ppid;
 };
 
 /*
@@ -417,6 +418,9 @@ enum trace_iterator_flags {
 	TRACE_ITER_PRINTK		= 0x400,
 };
 
+#ifdef CONFIG_FTRACE_EARLY
+ssize_t __init tracing_early_set_trace_write(const char *ubuf, size_t cnt);
+int __init tracing_early_ctrl_write(unsigned int val);
+#endif /* CONFIG_EARLY_FTRACE */
 extern struct tracer nop_trace;
-
 #endif /* _LINUX_KERNEL_TRACE_H */

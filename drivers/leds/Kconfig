@@ -17,6 +17,13 @@ config LEDS_CLASS
 
 comment "LED drivers"
 
+config LEDS_BCMRING
+	tristate "LED Support using BCMRING LED Matrix"
+	depends on LEDS_CLASS && ARCH_BCM11107
+	help
+	  This option enables support for LEDs driven using LED Matrix
+	  on BCMRING.
+
 config LEDS_ATMEL_PWM
 	tristate "LED Support using Atmel PWM outputs"
 	depends on LEDS_CLASS && ATMEL_PWM

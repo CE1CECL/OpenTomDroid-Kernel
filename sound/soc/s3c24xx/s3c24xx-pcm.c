@@ -31,6 +31,10 @@
 #include <mach/dma.h>
 #include <mach/audio.h>
 
+#ifdef CONFIG_PLAT_S5P64XX
+#include <mach/s3c-dma.h>
+#endif
+
 #include "s3c24xx-pcm.h"
 
 #define S3C24XX_PCM_DEBUG 0
@@ -49,13 +53,14 @@ static const struct snd_pcm_hardware s3c24xx_pcm_hardware = {
 				    SNDRV_PCM_INFO_RESUME,
 	.formats		= SNDRV_PCM_FMTBIT_S16_LE |
 				    SNDRV_PCM_FMTBIT_U16_LE |
+				    SNDRV_PCM_FMTBIT_S24_LE |
 				    SNDRV_PCM_FMTBIT_U8 |
 				    SNDRV_PCM_FMTBIT_S8,
 	.channels_min		= 2,
 	.channels_max		= 2,
 	.buffer_bytes_max	= 128*1024,
-	.period_bytes_min	= PAGE_SIZE,
-	.period_bytes_max	= PAGE_SIZE*2,
+	.period_bytes_min	= 128,
+	.period_bytes_max	= 16*1024,
 	.periods_min		= 2,
 	.periods_max		= 128,
 	.fifo_size		= 32,
@@ -82,11 +87,17 @@ static void s3c24xx_pcm_enqueue(struct snd_pcm_substream *substream)
 {
 	struct s3c24xx_runtime_data *prtd = substream->runtime->private_data;
 	dma_addr_t pos = prtd->dma_pos;
+	unsigned int limit;
 	int ret;
 
 	DBG("Entered %s\n", __func__);
 
-	while (prtd->dma_loaded < prtd->dma_limit) {
+	if (s3c_dma_has_circular())
+		limit = (prtd->dma_end - prtd->dma_start) / prtd->dma_period;
+	else
+		limit = prtd->dma_limit;
+
+	while (prtd->dma_loaded < limit) {
 		unsigned long len = prtd->dma_period;
 
 		DBG("dma_loaded: %d\n", prtd->dma_loaded);
@@ -130,7 +141,7 @@ static void s3c24xx_audio_buffdone(struct s3c2410_dma_chan *channel,
 		snd_pcm_period_elapsed(substream);
 
 	spin_lock(&prtd->lock);
-	if (prtd->state & ST_RUNNING) {
+	if (prtd->state & ST_RUNNING && !s3c_dma_has_circular()) {
 		prtd->dma_loaded--;
 		s3c24xx_pcm_enqueue(substream);
 	}
@@ -171,6 +182,10 @@ static int s3c24xx_pcm_hw_params(struct snd_pcm_substream *substream,
 			DBG(KERN_ERR "failed to get dma channel\n");
 			return ret;
 		}
+
+		/* use the circular buffering if we have it available */
+		if (s3c_dma_has_circular())
+			s3c2410_dma_setflags(prtd->params->channel, S3C2410_DMAF_CIRCULAR);
 	}
 
 	s3c2410_dma_set_buffdone_fn(prtd->params->channel,
@@ -225,23 +240,13 @@ static int s3c24xx_pcm_prepare(struct snd_pcm_substream *substream)
 	 * sync to pclk, half-word transfers to the IIS-FIFO. */
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		s3c2410_dma_devconfig(prtd->params->channel,
-				S3C2410_DMASRC_MEM, S3C2410_DISRCC_INC |
-				S3C2410_DISRCC_APB, prtd->params->dma_addr);
-
-		s3c2410_dma_config(prtd->params->channel,
-				prtd->params->dma_size,
-				S3C2410_DCON_SYNC_PCLK |
-				S3C2410_DCON_HANDSHAKE);
+				S3C2410_DMASRC_MEM, prtd->params->dma_addr);
 	} else {
-		s3c2410_dma_config(prtd->params->channel,
-				prtd->params->dma_size,
-				S3C2410_DCON_HANDSHAKE |
-				S3C2410_DCON_SYNC_PCLK);
-
 		s3c2410_dma_devconfig(prtd->params->channel,
-					S3C2410_DMASRC_HW, 0x3,
-					prtd->params->dma_addr);
+				S3C2410_DMASRC_HW, prtd->params->dma_addr);
 	}
+	s3c2410_dma_config(prtd->params->channel,
+				prtd->params->dma_size);
 
 	/* flush the DMA channel */
 	s3c2410_dma_ctrl(prtd->params->channel, S3C2410_DMAOP_FLUSH);
@@ -269,7 +274,6 @@ static int s3c24xx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		prtd->state |= ST_RUNNING;
 		s3c2410_dma_ctrl(prtd->params->channel, S3C2410_DMAOP_START);
-		s3c2410_dma_ctrl(prtd->params->channel, S3C2410_DMAOP_STARTED);
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
@@ -332,6 +336,7 @@ static int s3c24xx_pcm_open(struct snd_pcm_substream *substream)
 
 	DBG("Entered %s\n", __func__);
 
+	snd_pcm_hw_constraint_integer(runtime, SNDRV_PCM_HW_PARAM_PERIODS);
 	snd_soc_set_runtime_hwparams(substream, &s3c24xx_pcm_hardware);
 
 	prtd = kzalloc(sizeof(struct s3c24xx_runtime_data), GFP_KERNEL);

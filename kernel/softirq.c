@@ -22,7 +22,10 @@
 #include <linux/kthread.h>
 #include <linux/rcupdate.h>
 #include <linux/smp.h>
+#include <linux/marker.h>
+#include <linux/kallsyms.h>
 #include <linux/tick.h>
+#include <trace/irq.h>
 
 #include <asm/irq.h>
 /*
@@ -49,6 +52,20 @@ EXPORT_SYMBOL(irq_stat);
 #endif
 
 static struct softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp;
+
+void ltt_dump_softirq_vec(void *call_data)
+{
+	int i;
+	char namebuf[KSYM_NAME_LEN];
+
+	for (i = 0; i < 32; i++) {
+		sprint_symbol(namebuf, (unsigned long)softirq_vec[i].action);
+		__trace_mark(0, statedump_softirq_vec, call_data,
+			"id %d address %p symbol %s",
+			i, softirq_vec[i].action, namebuf);
+	}
+}
+EXPORT_SYMBOL_GPL(ltt_dump_softirq_vec);
 
 static DEFINE_PER_CPU(struct task_struct *, ksoftirqd);
 
@@ -207,9 +224,11 @@ restart:
 
 	do {
 		if (pending & 1) {
+			trace_irq_softirq_entry(h, softirq_vec);
 			int prev_count = preempt_count();
 
 			h->action(h);
+			trace_irq_softirq_exit(h, softirq_vec);
 
 			if (unlikely(prev_count != preempt_count())) {
 				printk(KERN_ERR "huh, entered softirq %td %p"
@@ -307,6 +326,7 @@ void irq_exit(void)
  */
 inline void raise_softirq_irqoff(unsigned int nr)
 {
+	trace_irq_softirq_raise(nr);
 	__raise_softirq_irqoff(nr);
 
 	/*
@@ -321,6 +341,7 @@ inline void raise_softirq_irqoff(unsigned int nr)
 	if (!in_interrupt())
 		wakeup_softirqd();
 }
+EXPORT_SYMBOL(raise_softirq_irqoff);
 
 void raise_softirq(unsigned int nr)
 {
@@ -393,7 +414,9 @@ static void tasklet_action(struct softirq_action *a)
 			if (!atomic_read(&t->count)) {
 				if (!test_and_clear_bit(TASKLET_STATE_SCHED, &t->state))
 					BUG();
+				trace_irq_tasklet_low_entry(t);
 				t->func(t->data);
+				trace_irq_tasklet_low_exit(t);
 				tasklet_unlock(t);
 				continue;
 			}
@@ -428,7 +451,9 @@ static void tasklet_hi_action(struct softirq_action *a)
 			if (!atomic_read(&t->count)) {
 				if (!test_and_clear_bit(TASKLET_STATE_SCHED, &t->state))
 					BUG();
+				trace_irq_tasklet_high_entry(t);
 				t->func(t->data);
+				trace_irq_tasklet_high_exit(t);
 				tasklet_unlock(t);
 				continue;
 			}

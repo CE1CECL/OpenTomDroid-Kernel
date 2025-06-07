@@ -107,6 +107,16 @@ enum {
 	RTM_GETADDRLABEL,
 #define RTM_GETADDRLABEL RTM_GETADDRLABEL
 
+    /* CONFIG INTERPEAK >>> */
+    RTM_NEWVR       = 100,
+#define RTM_NEWVR RTM_NEWVR
+    RTM_DELVR,
+#define RTM_DELVR RTM_DELVR
+    RTM_GETVR,
+#define RTM_GETVR RTM_GETVR
+    RTM_CHANGEVR,
+#define RTM_CHANGEVR RTM_CHANGEVR
+    /* <<< CONFIG INTERPEAK */
 	__RTM_MAX,
 #define RTM_MAX		(((__RTM_MAX + 3) & ~3) - 1)
 };
@@ -181,6 +191,10 @@ enum
 	RTN_THROW,		/* Not in this table		*/
 	RTN_NAT,		/* Translate this address	*/
 	RTN_XRESOLVE,		/* Use external resolver	*/
+	/* CONFIG INTERPEAK >>> */
+	RTN_PROXY = 32,              /* Proxy ARP route */
+	RTN_CLONE,              /* Cloning route */
+	/* <<< CONFIG INTERPEAK */
 	__RTN_MAX
 };
 
@@ -274,6 +288,19 @@ enum rtattr_type_t
 	RTA_SESSION, /* no longer used */
 	RTA_MP_ALGO, /* no longer used */
 	RTA_TABLE,
+
+	/* CONFIG INTERPEAK >>> */
+	/* unsigned long. Used for MPLS shortcut routes */
+	RTA_NH_PROTO = 32,
+	/* unsigned long. Used for MPLS shortcut routes */
+	RTA_NH_PROTO_DATA,
+	/* 6 * unsigned char. For storing MAC address in proxy arp routes */
+	RTA_PROXY_ARP_LLADDR,
+	/* unsigned long. Virtual router index. */
+	RTA_VR,
+	/* string (max 16 characters). Route table name */
+	RTA_TABLE_NAME,
+	/* <<< CONFIG INTERPEAK */
 	__RTA_MAX
 };
 
@@ -281,6 +308,13 @@ enum rtattr_type_t
 
 #define RTM_RTA(r)  ((struct rtattr*)(((char*)(r)) + NLMSG_ALIGN(sizeof(struct rtmsg))))
 #define RTM_PAYLOAD(n) NLMSG_PAYLOAD(n,sizeof(struct rtmsg))
+
+/* CONFIG INTERPEAK >>> */
+
+/* Used as NH_PROTO specifier for MPLS shortcut routes */
+#define NH_PROTO_MPLS 0x8847
+
+/* <<< CONFIG INTERPEAK */
 
 /* RTM_MULTIPATH --- array of struct rtnexthop.
  *
@@ -445,6 +479,9 @@ enum
 	PREFIX_UNSPEC,
 	PREFIX_ADDRESS,
 	PREFIX_CACHEINFO,
+    /* CONFIG_INTERPEAK >>> */
+    PREFIX_VR = 16,
+    /* <<< CONFIG_INTERPEAK */
 	__PREFIX_MAX
 };
 
@@ -537,6 +574,10 @@ enum
 #define RTMGRP_DECnet_IFADDR    0x1000
 #define RTMGRP_DECnet_ROUTE     0x4000
 
+/* CONFIG INTERPEAK >>> */
+#define RTMGRP_RTAB             RTNLGRP_RTAB
+/* <<< CONFIG INTERPEAK */
+
 #define RTMGRP_IPV6_PREFIX	0x20000
 #endif
 
@@ -575,7 +616,7 @@ enum rtnetlink_groups {
 #define RTNLGRP_DECnet_ROUTE	RTNLGRP_DECnet_ROUTE
 	RTNLGRP_DECnet_RULE,
 #define RTNLGRP_DECnet_RULE	RTNLGRP_DECnet_RULE
-	RTNLGRP_NOP4,
+	RTNLGRP_RTAB,
 	RTNLGRP_IPV6_PREFIX,
 #define RTNLGRP_IPV6_PREFIX	RTNLGRP_IPV6_PREFIX
 	RTNLGRP_IPV6_RULE,
@@ -601,6 +642,45 @@ struct tcamsg
 #define TA_PAYLOAD(n) NLMSG_PAYLOAD(n,sizeof(struct tcamsg))
 #define TCA_ACT_TAB 1 /* attr type must be >=1 */	
 #define TCAA_MAX 1
+
+/* CONFIG INTERPEAK >>> */
+/* VR attributes */
+struct vrmsg
+{
+    unsigned char vr_family;
+    unsigned char  __vr_pad1;
+    unsigned short __vr_pad2;
+    unsigned long vr_vr;
+};
+
+enum vrattr_type_t
+{
+    VR_UNSPEC,
+    VR_VR,
+    VR_IFNAME,
+    VR_TABLE,
+    VR_TABLE_NAME,
+    VR_IFNAMES,
+    VR_TABLES,
+    __VR_MAX
+};
+#define VR_MAX (__VR_MAX - 1)
+
+enum vrxattr_type_t
+{
+    VRX_UNSPEC,
+    VRX_IFNAME,
+    VRX_TABLE,
+    VRX_TABLE_NAME,
+    __VRX_MAX
+};
+
+#define VRX_MAX (__VRX_MAX - 1)
+#define VR_RTA(r)  ((struct rtattr*)(((char*)(r)) + NLMSG_ALIGN(sizeof(struct vrmsg))))
+#define VR_PAYLOAD(n) NLMSG_PAYLOAD(n,sizeof(struct vrmsg))
+
+/* <<< CONFIG INTERPEAK */
+
 
 /* End of information exported to user level */
 

@@ -2699,6 +2699,12 @@ L:	linux-security-module@vger.kernel.org
 T:	git kernel.org:/pub/scm/linux/kernel/git/chrisw/lsm-2.6.git
 S:	Supported
 
+LINUX TRACE TOOLKIT NEXT GENERATION
+P:	Mathieu Desnoyers
+M:	mathieu.desnoyers@polymtl.ca
+L:	ltt-dev@listserv.shafik.org
+W:	http://ltt.polymtl.ca
+
 LLC (802.2)
 P:	Arnaldo Carvalho de Melo
 M:	acme@ghostprotocols.net
@@ -3420,6 +3426,13 @@ S:	Maintained
 PPP OVER L2TP
 P:	James Chapman
 M:	jchapman@katalix.com
+S:	Maintained
+
+PPS SUPPORT
+P:	Rodolfo Giometti
+M:	giometti@enneenne.com
+W:	http://wiki.enneenne.com/index.php/LinuxPPS_support
+L:	linuxpps@ml.enneenne.com (subscribers-only)
 S:	Maintained
 
 PREEMPTIBLE KERNEL

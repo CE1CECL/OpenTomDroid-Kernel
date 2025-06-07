@@ -362,6 +362,11 @@ int mmc_attach_sdio(struct mmc_host *host, u32 ocr)
 	if (err)
 		goto remove;
 
+// [JLH] Force host controller to high speed timing if clock above 25 Mhz
+
+	if(card->cis.max_dtr > 25000000)
+		card->cccr.high_speed = 1;
+
 	/*
 	 * Switch to high-speed (if supported).
 	 */

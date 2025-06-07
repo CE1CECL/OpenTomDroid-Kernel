@@ -46,17 +46,21 @@ obj-$(CONFIG_DEBUG_SPINLOCK) += spinlock.o
 obj-$(CONFIG_PROVE_LOCKING) += spinlock.o
 obj-$(CONFIG_UID16) += uid16.o
 obj-$(CONFIG_MODULES) += module.o
+obj-$(CONFIG_MODULE_HASHES) += module_hash.o
 obj-$(CONFIG_KALLSYMS) += kallsyms.o
 obj-$(CONFIG_PM) += power/
 obj-$(CONFIG_BSD_PROCESS_ACCT) += acct.o
 obj-$(CONFIG_KEXEC) += kexec.o
 obj-$(CONFIG_BACKTRACE_SELF_TEST) += backtracetest.o
+obj-$(CONFIG_HWTIMER_HOOKS) += hwtimer.o
+obj-$(CONFIG_HWTIMER_TEST) += hwtimer_test.o
 obj-$(CONFIG_COMPAT) += compat.o
 obj-$(CONFIG_CGROUPS) += cgroup.o
 obj-$(CONFIG_CGROUP_DEBUG) += cgroup_debug.o
 obj-$(CONFIG_CGROUP_FREEZER) += cgroup_freezer.o
 obj-$(CONFIG_CPUSETS) += cpuset.o
 obj-$(CONFIG_CGROUP_NS) += ns_cgroup.o
+obj-$(CONFIG_CGROUP_TC) += tc_cgroup.o
 obj-$(CONFIG_UTS_NS) += utsname.o
 obj-$(CONFIG_USER_NS) += user_namespace.o
 obj-$(CONFIG_PID_NS) += pid_namespace.o
@@ -82,12 +86,12 @@ obj-$(CONFIG_RELAY) += relay.o
 obj-$(CONFIG_SYSCTL) += utsname_sysctl.o
 obj-$(CONFIG_TASK_DELAY_ACCT) += delayacct.o
 obj-$(CONFIG_TASKSTATS) += taskstats.o tsacct.o
+obj-$(USE_IMMEDIATE) += immediate.o
 obj-$(CONFIG_MARKERS) += marker.o
 obj-$(CONFIG_TRACEPOINTS) += tracepoint.o
 obj-$(CONFIG_LATENCYTOP) += latencytop.o
 obj-$(CONFIG_HAVE_GENERIC_DMA_COHERENT) += dma-coherent.o
 obj-$(CONFIG_FUNCTION_TRACER) += trace/
-obj-$(CONFIG_TRACING) += trace/
 obj-$(CONFIG_SMP) += sched_cpupri.o
 
 ifneq ($(CONFIG_SCHED_NO_NO_OMIT_FRAME_POINTER),y)
@@ -101,11 +105,15 @@ endif
 
 $(obj)/configs.o: $(obj)/config_data.h
 
+quiet_cmd_gzipv = GZIPV $@
+cmd_gzipv = scripts/add_tt_version; gzip -f -9 < $< > $@
+
+
 # config_data.h contains the same information as ikconfig.h but gzipped.
 # Info from config_data can be extracted from /proc/config*
 targets += config_data.gz
 $(obj)/config_data.gz: .config FORCE
-	$(call if_changed,gzip)
+	$(call if_changed,gzipv)
 
 quiet_cmd_ikconfiggz = IKCFG   $@
       cmd_ikconfiggz = (echo "static const char kernel_config_data[] = MAGIC_START"; cat $< | scripts/bin2c; echo "MAGIC_END;") > $@
@@ -120,3 +128,18 @@ quiet_cmd_timeconst  = TIMEC   $@
 targets += timeconst.h
 $(obj)/timeconst.h: $(src)/timeconst.pl FORCE
 	$(call if_changed,timeconst)
+
+$(obj)/module_hash.o: $(obj)/modhashes.h
+
+quiet_cmd_modhashes_h = MODHASH $@
+      cmd_modhashes_h = \
+	(echo "static char const modhashes[][20] = {" ; 						\
+	find $(objtree) -name \*.ko.sha1 |xargs sort |perl -e 						\
+		'while (<>) { s|((  .+)?\s)$$||s; print "//$$1"; s|(..)|0x\1,|g; print "{$$_},\n" }';	\
+	echo "};") > $@
+
+$(obj)/modhashes.h: FORCE
+	$(call cmd,modhashes_h)
+
+clean-files := modhashes.h
+

@@ -203,6 +203,7 @@ static void amba_device_release(struct device *dev)
 int amba_device_register(struct amba_device *dev, struct resource *parent)
 {
 	u32 pid, cid;
+   u32 size;
 	void __iomem *tmp;
 	int i, ret;
 
@@ -218,16 +219,19 @@ int amba_device_register(struct amba_device *dev, struct resource *parent)
 	if (ret)
 		goto err_out;
 
-	tmp = ioremap(dev->res.start, SZ_4K);
+   /* Dynamically calculate the size of the resource and use this for iomap */
+   size = dev->res.end - dev->res.start + 1;
+	tmp = ioremap(dev->res.start, size);
 	if (!tmp) {
 		ret = -ENOMEM;
 		goto err_release;
 	}
 
+   /* Read pid and cid based on size of resource - they are located at end of region */
 	for (pid = 0, i = 0; i < 4; i++)
-		pid |= (readl(tmp + 0xfe0 + 4 * i) & 255) << (i * 8);
+		pid |= (readl(tmp + size - 0x20 + 4 * i) & 255) << (i * 8);
 	for (cid = 0, i = 0; i < 4; i++)
-		cid |= (readl(tmp + 0xff0 + 4 * i) & 255) << (i * 8);
+		cid |= (readl(tmp + size - 0x10 + 4 * i) & 255) << (i * 8);
 
 	iounmap(tmp);
 

@@ -39,6 +39,7 @@
 #include <linux/ptrace.h>
 #include <linux/reboot.h>
 #include <linux/string.h>
+#include <linux/utsname.h>
 #include <linux/delay.h>
 #include <linux/sched.h>
 #include <linux/sysrq.h>
@@ -53,6 +54,9 @@
 #include <asm/atomic.h>
 #include <asm/system.h>
 #include <asm/unaligned.h>
+#ifdef CONFIG_ARM
+#include <asm/procinfo.h>
+#endif
 
 static int kgdb_break_asap;
 
@@ -116,6 +120,7 @@ static struct kgdb_bkpt		kgdb_break[KGDB_MAX_BREAKPOINTS] = {
  * The CPU# of the active CPU, or -1 if none:
  */
 atomic_t			kgdb_active = ATOMIC_INIT(-1);
+EXPORT_SYMBOL_GPL(kgdb_active);
 
 /*
  * We use NR_CPUs not PERCPU, in case kgdb is used to debug early
@@ -123,6 +128,7 @@ atomic_t			kgdb_active = ATOMIC_INIT(-1);
  */
 static atomic_t			passive_cpu_wait[NR_CPUS];
 static atomic_t			cpu_in_kgdb[NR_CPUS];
+static atomic_t			kgdb_break_tasklet_var;
 atomic_t			kgdb_setting_breakpoint;
 
 struct task_struct		*kgdb_usethread;
@@ -363,7 +369,7 @@ static void put_packet(char *buffer)
  * Convert the memory pointed to by mem into hex, placing result in buf.
  * Return a pointer to the last char put in buf (null). May return an error.
  */
-int kgdb_mem2hex(char *mem, char *buf, int count)
+int __weak kgdb_mem2hex(char *mem, char *buf, int count)
 {
 	char *tmp;
 	int err;
@@ -393,7 +399,7 @@ int kgdb_mem2hex(char *mem, char *buf, int count)
  * 0x7d escaped with 0x7d.  Return a pointer to the character after
  * the last byte written.
  */
-static int kgdb_ebin2mem(char *buf, char *mem, int count)
+int __weak kgdb_ebin2mem(char *buf, char *mem, int count)
 {
 	int err = 0;
 	char c;
@@ -418,7 +424,7 @@ static int kgdb_ebin2mem(char *buf, char *mem, int count)
  * Return a pointer to the character AFTER the last byte written.
  * May return an error.
  */
-int kgdb_hex2mem(char *buf, char *mem, int count)
+int __weak kgdb_hex2mem(char *buf, char *mem, int count)
 {
 	char *tmp_raw;
 	char *tmp_hex;
@@ -1068,6 +1074,52 @@ static void gdb_cmd_query(struct kgdb_state *ks)
 			kgdb_mem2hex(tmpstr, remcom_out_buffer, strlen(tmpstr));
 		}
 		break;
+	case 'c':
+		if (memcmp(remcom_in_buffer + 1, "cpu,", 3) == 0) {
+			/* This is the qcpu command.
+			 *
+			 * The response is
+			 * arch,endian,kernel rev,arch specific
+			 */
+			strcpy(remcom_out_buffer, utsname()->machine);
+			strcat(remcom_out_buffer, ",");
+#ifdef __BIG_ENDIAN
+			strcat(remcom_out_buffer, "big,");
+#else
+			strcat(remcom_out_buffer, "little,");
+#endif
+			strcat(remcom_out_buffer, utsname()->release);
+			strcat(remcom_out_buffer, ",");
+#if defined(CONFIG_PPC64) || defined(CONFIG_PPC)
+			strcat(remcom_out_buffer, cur_cpu_spec[0].cpu_name);
+#elif defined(CONFIG_ARM)
+			{
+				extern struct proc_info_list
+					*lookup_processor_type(unsigned int);
+				struct proc_info_list *list;
+				list = lookup_processor_type(read_cpuid_id());
+				if (list)
+					strcat(remcom_out_buffer,
+					       list->cpu_name);
+			}
+#elif defined(CONFIG_MIPS)
+			{
+				char fmt[64];
+				char fmt2[80];
+				unsigned int version =
+					cpu_data[0].processor_id;
+				unsigned int fp_vers = cpu_data[0].fpu_id;
+				sprintf(fmt, "%%s V%%d.%%d%s",
+					cpu_data[0].options &
+					MIPS_CPU_FPU ? "  FPU V%d.%d" : "");
+				sprintf(fmt2, fmt, __cpu_name[0],
+					(version >> 4) & 0x0f, version & 0x0f,
+					(fp_vers >> 4) & 0x0f, fp_vers & 0x0f);
+				strcat(remcom_out_buffer, fmt2);
+			}
+#endif
+		}
+		break;
 	}
 }
 
@@ -1533,6 +1585,22 @@ kgdb_restore:
 	return error;
 }
 
+/*
+ * GDB places a breakpoint at this function to know dynamically
+ * loaded objects. It's not defined static so that only one instance with this
+ * name exists in the kernel.
+ */
+
+static int module_event(struct notifier_block *self, unsigned long val,
+	void *data)
+{
+	return 0;
+}
+
+static struct notifier_block kgdb_module_load_nb = {
+	.notifier_call	= module_event,
+};
+
 int kgdb_nmicallback(int cpu, void *regs)
 {
 #ifdef CONFIG_SMP
@@ -1588,11 +1656,50 @@ static struct sysrq_key_op sysrq_gdb_op = {
 };
 #endif
 
+static int
+kgdb_notify_reboot(struct notifier_block *this, unsigned long code, void *x)
+{
+	unsigned long flags;
+
+	if (!kgdb_connected)
+		return 0;
+
+	if (code == SYS_RESTART || code == SYS_HALT || code == SYS_POWER_OFF) {
+		local_irq_save(flags);
+		if (kgdb_io_ops->write_char) {
+			/* Do not use put_packet to avoid hanging
+			 * in case the attached debugger disappeared
+			 * or does not respond timely.
+			 */
+			kgdb_io_ops->write_char('$');
+			kgdb_io_ops->write_char('X');
+			kgdb_io_ops->write_char('0');
+			kgdb_io_ops->write_char('0');
+			kgdb_io_ops->write_char('#');
+			kgdb_io_ops->write_char('b');
+			kgdb_io_ops->write_char('8');
+			if (kgdb_io_ops->flush)
+				kgdb_io_ops->flush();
+		}
+		kgdb_connected = 0;
+		local_irq_restore(flags);
+	}
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block kgdb_reboot_notifier = {
+	.notifier_call		= kgdb_notify_reboot,
+	.next			= NULL,
+	.priority		= INT_MAX,
+};
+
 static void kgdb_register_callbacks(void)
 {
 	if (!kgdb_io_module_registered) {
 		kgdb_io_module_registered = 1;
 		kgdb_arch_init();
+		register_module_notifier(&kgdb_module_load_nb);
+		register_reboot_notifier(&kgdb_reboot_notifier);
 #ifdef CONFIG_MAGIC_SYSRQ
 		register_sysrq_key('g', &sysrq_gdb_op);
 #endif
@@ -1611,6 +1718,8 @@ static void kgdb_unregister_callbacks(void)
 	 * break exceptions at the time.
 	 */
 	if (kgdb_io_module_registered) {
+		unregister_reboot_notifier(&kgdb_reboot_notifier);
+		unregister_module_notifier(&kgdb_module_load_nb);
 		kgdb_io_module_registered = 0;
 		kgdb_arch_exit();
 #ifdef CONFIG_MAGIC_SYSRQ
@@ -1622,6 +1731,31 @@ static void kgdb_unregister_callbacks(void)
 		}
 	}
 }
+
+/*
+ * There are times a tasklet needs to be used vs a compiled in in
+ * break point so as to cause an exception outside a kgdb I/O module,
+ * such as is the case with kgdboe, where calling a breakpoint in the
+ * I/O driver itself would be fatal.
+ */
+static void kgdb_tasklet_bpt(unsigned long ing)
+{
+	kgdb_breakpoint();
+	atomic_set(&kgdb_break_tasklet_var, 0);
+}
+
+static DECLARE_TASKLET(kgdb_tasklet_breakpoint, kgdb_tasklet_bpt, 0);
+
+void kgdb_schedule_breakpoint(void)
+{
+	if (atomic_read(&kgdb_break_tasklet_var) ||
+		atomic_read(&kgdb_active) != -1 ||
+		atomic_read(&kgdb_setting_breakpoint))
+		return;
+	atomic_inc(&kgdb_break_tasklet_var);
+	tasklet_schedule(&kgdb_tasklet_breakpoint);
+}
+EXPORT_SYMBOL_GPL(kgdb_schedule_breakpoint);
 
 static void kgdb_initial_breakpoint(void)
 {

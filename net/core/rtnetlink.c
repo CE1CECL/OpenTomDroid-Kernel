@@ -191,6 +191,16 @@ void rtnl_register(int protocol, int msgtype,
 
 EXPORT_SYMBOL_GPL(rtnl_register);
 
+#ifdef CONFIG_INTERPEAK
+void rtnl_do_register(int protocol, int msgtype,
+		   rtnl_doit_func doit, rtnl_dumpit_func dumpit)
+{
+        return rtnl_register(protocol, msgtype, doit, dumpit);
+}
+
+EXPORT_SYMBOL(rtnl_do_register);
+#endif /* CONFIG_INTERPEAK */
+
 /**
  * rtnl_unregister - Unregister a rtnetlink message type
  * @protocol: Protocol family or PF_UNSPEC
@@ -216,6 +226,16 @@ int rtnl_unregister(int protocol, int msgtype)
 
 EXPORT_SYMBOL_GPL(rtnl_unregister);
 
+
+#ifdef CONFIG_INTERPEAK
+int rtnl_do_unregister(int protocol, int msgtype)
+{
+       return rtnl_unregister(protocol, msgtype);
+}
+
+EXPORT_SYMBOL(rtnl_do_unregister);
+#endif /* CONFIG_INTERPEAK */
+
 /**
  * rtnl_unregister_all - Unregister all rtnetlink message type of a protocol
  * @protocol : Protocol family or PF_UNSPEC
@@ -232,6 +252,15 @@ void rtnl_unregister_all(int protocol)
 }
 
 EXPORT_SYMBOL_GPL(rtnl_unregister_all);
+
+#ifdef CONFIG_INTERPEAK
+void rtnl_do_unregister_all(int protocol)
+{
+  return rtnl_do_unregister_all(protocol);
+}
+
+EXPORT_SYMBOL(rtnl_do_unregister_all);
+#endif /* CONFIG_INTERPEAK */
 
 static LIST_HEAD(link_ops);
 
@@ -401,6 +430,10 @@ static const int rtm_min[RTM_NR_FAMILIES] =
 	[RTM_FAM(RTM_NEWLINK)]      = NLMSG_LENGTH(sizeof(struct ifinfomsg)),
 	[RTM_FAM(RTM_NEWADDR)]      = NLMSG_LENGTH(sizeof(struct ifaddrmsg)),
 	[RTM_FAM(RTM_NEWROUTE)]     = NLMSG_LENGTH(sizeof(struct rtmsg)),
+#ifdef CONFIG_INTERPEAK
+	[RTM_FAM(RTM_NEWNEIGH)]     = NLMSG_LENGTH(sizeof(struct ndmsg)),
+	[RTM_FAM(RTM_NEWVR)]        = NLMSG_LENGTH(sizeof(struct vrmsg)),
+#endif /* CONFIG_INTERPEAK */
 	[RTM_FAM(RTM_NEWRULE)]      = NLMSG_LENGTH(sizeof(struct fib_rule_hdr)),
 	[RTM_FAM(RTM_NEWQDISC)]     = NLMSG_LENGTH(sizeof(struct tcmsg)),
 	[RTM_FAM(RTM_NEWTCLASS)]    = NLMSG_LENGTH(sizeof(struct tcmsg)),
@@ -415,6 +448,10 @@ static const int rta_max[RTM_NR_FAMILIES] =
 	[RTM_FAM(RTM_NEWLINK)]      = IFLA_MAX,
 	[RTM_FAM(RTM_NEWADDR)]      = IFA_MAX,
 	[RTM_FAM(RTM_NEWROUTE)]     = RTA_MAX,
+#ifdef CONFIG_INTERPEAK
+	[RTM_FAM(RTM_NEWNEIGH)]     = NDA_MAX,
+	[RTM_FAM(RTM_NEWVR)]        = VR_MAX,
+#endif /* CONFIG_INTERPEAK */
 	[RTM_FAM(RTM_NEWRULE)]      = FRA_MAX,
 	[RTM_FAM(RTM_NEWQDISC)]     = TCA_MAX,
 	[RTM_FAM(RTM_NEWTCLASS)]    = TCA_MAX,
@@ -447,6 +484,9 @@ int rtnetlink_send(struct sk_buff *skb, struct net *net, u32 pid, unsigned group
 		err = netlink_unicast(rtnl, skb, pid, MSG_DONTWAIT);
 	return err;
 }
+#ifdef CONFIG_INTERPEAK
+EXPORT_SYMBOL(rtnetlink_send);
+#endif
 
 int rtnl_unicast(struct sk_buff *skb, struct net *net, u32 pid)
 {
@@ -674,6 +714,10 @@ static int rtnl_fill_ifinfo(struct sk_buff *skb, struct net_device *dev,
 			goto nla_put_failure;
 	}
 
+#ifdef CONFIG_INTERPEAK
+	NLA_PUT(skb, IFLA_VR, sizeof(dev->vr), &dev->vr);
+#endif
+
 	return nlmsg_end(skb, nlh);
 
 nla_put_failure:
@@ -692,6 +736,13 @@ static int rtnl_dump_ifinfo(struct sk_buff *skb, struct netlink_callback *cb)
 	for_each_netdev(net, dev) {
 		if (idx < s_idx)
 			goto cont;
+
+#ifdef CONFIG_INTERPEAK
+		/* Only show interfaces that are in callers VR */
+		if ((NETLINK_CB(skb).vr >= 0)
+		    && (dev->vr != NETLINK_CB(skb).vr))
+		  goto cont;
+#endif
 		if (rtnl_fill_ifinfo(skb, dev, RTM_NEWLINK,
 				     NETLINK_CB(cb->skb).pid,
 				     cb->nlh->nlmsg_seq, 0, NLM_F_MULTI) <= 0)
@@ -1204,7 +1255,11 @@ errout:
 	return err;
 }
 
+#ifdef CONFIG_INTERPEAK
+int rtnl_dump_all(struct sk_buff *skb, struct netlink_callback *cb)
+#else
 static int rtnl_dump_all(struct sk_buff *skb, struct netlink_callback *cb)
+#endif /* CONFIG_INTERPEAK */
 {
 	int idx;
 	int s_idx = cb->family;
@@ -1228,6 +1283,10 @@ static int rtnl_dump_all(struct sk_buff *skb, struct netlink_callback *cb)
 	return skb->len;
 }
 
+#ifdef CONFIG_INTERPEAK
+EXPORT_SYMBOL(rtnl_dump_all);
+#endif
+
 void rtmsg_ifinfo(int type, struct net_device *dev, unsigned change)
 {
 	struct net *net = dev_net(dev);
@@ -1245,6 +1304,11 @@ void rtmsg_ifinfo(int type, struct net_device *dev, unsigned change)
 		kfree_skb(skb);
 		goto errout;
 	}
+
+#ifdef CONFIG_INTERPEAK
+	NETLINK_CB(skb).vr = dev->vr;
+#endif
+
 	err = rtnl_notify(skb, net, 0, RTNLGRP_LINK, NULL, GFP_KERNEL);
 errout:
 	if (err < 0)

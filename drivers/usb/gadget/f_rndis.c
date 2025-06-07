@@ -84,6 +84,7 @@ struct f_rndis {
 	u8				ctrl_id, data_id;
 	u8				ethaddr[ETH_ALEN];
 	int				config;
+	u8				gether_connected;
 
 	struct rndis_ep_descs		fs;
 	struct rndis_ep_descs		hs;
@@ -470,11 +471,14 @@ static int rndis_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 		rndis->notify->driver_data = rndis;
 
 	} else if (intf == rndis->data_id) {
-		struct net_device	*net;
+		struct net_device *net = NULL;
 
 		if (rndis->port.in_ep->driver_data) {
 			DBG(cdev, "reset rndis\n");
-			gether_disconnect(&rndis->port);
+			if (rndis->gether_connected) {
+				rndis->gether_connected = 0;
+				gether_disconnect(&rndis->port);
+			}
 		} else {
 			DBG(cdev, "init rndis\n");
 			rndis->port.in = ep_choose(cdev->gadget,
@@ -501,9 +505,14 @@ static int rndis_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 		rndis->port.cdc_filter = 0;
 
 		DBG(cdev, "RNDIS RX/TX early activation ... \n");
-		net = gether_connect(&rndis->port);
-		if (IS_ERR(net))
-			return PTR_ERR(net);
+		if (rndis->gether_connected == 0) {
+			net = gether_connect(&rndis->port);
+			if (IS_ERR(net)) {
+				/* TODO: flag error */
+				return PTR_ERR(net);
+			}
+			rndis->gether_connected = 1;
+		}
 
 		rndis_set_param_dev(rndis->config, net,
 				&rndis->port.cdc_filter);
@@ -526,7 +535,10 @@ static void rndis_disable(struct usb_function *f)
 	DBG(cdev, "rndis deactivated\n");
 
 	rndis_uninit(rndis->config);
-	gether_disconnect(&rndis->port);
+	if (rndis->gether_connected) {
+		rndis->gether_connected = 0;
+		gether_disconnect(&rndis->port);
+	}
 
 	usb_ep_disable(rndis->notify);
 	rndis->notify->driver_data = NULL;
@@ -580,6 +592,7 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	if (status < 0)
 		goto fail;
 	rndis->ctrl_id = status;
+	rndis->gether_connected = 0;
 
 	rndis_control_intf.bInterfaceNumber = status;
 	rndis_union_desc.bMasterInterface0 = status;
@@ -679,11 +692,11 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 	rndis_set_param_medium(rndis->config, NDIS_MEDIUM_802_3, 0);
 	rndis_set_host_mac(rndis->config, rndis->ethaddr);
 
-#if 0
-// FIXME
-	if (rndis_set_param_vendor(rndis->config, vendorID,
-				manufacturer))
-		goto fail0;
+#if 1
+	if (rndis_set_param_vendor(rndis->config, 0x1390,
+				"stable")) {
+		DBG(cdev,"failed to set rndis param vendor\n");
+	}
 #endif
 
 	/* NOTE:  all that is done without knowing or caring about

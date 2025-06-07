@@ -32,6 +32,16 @@ config REGULATOR_FIXED_VOLTAGE
 	tristate
 	default n
 
+config REGULATOR_USERSPACE_CONSUMER
+	tristate "Userspace regulator consumer support"
+	default n
+	help
+	  There are some classes of devices that are controlled entirely
+	  from user space. Usersapce consumer driver provides ability to
+	  control power supplies for such devices.
+
+          If unsure, say no.
+
 config REGULATOR_VIRTUAL_CONSUMER
 	tristate "Virtual regulator consumer support"
 	default n
@@ -72,5 +82,12 @@ config REGULATOR_DA903X
 	help
 	  Say y here to support the BUCKs and LDOs regulators found on
 	  Dialog Semiconductor DA9030/DA9034 PMIC.
+
+config REGULATOR_BCM59040
+	tristate "Support regulators on Broadcom BCM59040 PMU"
+   depends on !PMU_DEVICE_BCM59040
+	default n
+	help
+	  This driver controls Broadcom BCM59040 Switchers and LDOs.
 
 endif

@@ -58,6 +58,30 @@ config TOUCHSCREEN_CORGI
 	  NOTE: this driver is deprecated, try enable SPI and generic
 	  ADS7846-based touchscreen driver.
 
+config TOUCHSCREEN_S3C
+        tristate "S3C touchscreen driver"
+        depends on ARCH_S3C2410 || ARCH_S3C64XX || ARCH_S5P64XX || ARCH_S5PC1XX
+        default y
+        help
+          Say Y here to enable the driver for the touchscreen on the
+          S3C SMDK board.
+
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the
+          module will be called s3c_ts.
+
+config TOUCHSCREEN_NEW
+        bool "new flip touch"
+        depends on TOUCHSCREEN_S3C
+        default y
+        help
+          Say Y here to enable the driver for the new version touchscreen on the
+          S3C SMDK board.
+
+          Say N here to enable the driver for the old version touchscreen on the
+          S3C SMDK board.
+
 config TOUCHSCREEN_FUJITSU
 	tristate "Fujitsu serial touchscreen"
 	select SERIO
@@ -355,6 +379,18 @@ config TOUCHSCREEN_USB_IDEALTEK
 	bool "IdealTEK URTC1000 device support" if EMBEDDED
 	depends on TOUCHSCREEN_USB_COMPOSITE
 
+config BCM4760_TOUCHSCREEN
+   tristate "BCM4760 Touchscreen"
+   depends on ARCH_BCM4760
+   help
+     Say Y here if you have a BCM4760 and want to support the
+     built-in touchscreen.
+
+     If unsure, say N.
+
+     To compile this driver as a module, choose M here: the module
+     will be called brcm4760_ts.
+
 config TOUCHSCREEN_USB_GENERAL_TOUCH
 	default y
 	bool "GeneralTouch Touchscreen device support" if EMBEDDED
@@ -376,4 +412,73 @@ config TOUCHSCREEN_TOUCHIT213
 	  To compile this driver as a module, choose M here: the
 	  module will be called touchit213.
 
+config TOUCHSCREEN_SYNAPTIC
+	tristate "Synaptic Capacitive TouchScreen"
+	depends on I2C
+	help
+	  Say Y or M if you have a Synaptic Capacitive TouchScreen
+
+	  If unsure, say N.
+
+	  This driver is anyway compiled as a module, the driver files are:
+          rmi.ko, rmi_phys_i2c.ko, rmi_app_touchpad.ko
+
+config TOUCHSCREEN_CYPRESS_TTSP
+	tristate "Cypress TTSP based TouchScreen"
+	depends on I2C
+	help
+	  Say Y here if you have a touchscreen interface using an
+	  Cypress TTSP controller, and your board-specific initialization
+	  code includes that in its table of I2C devices.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the modules
+          will be called cyttsp.ko and cyttsp-bl.ko
+
+config TOUCHSCREEN_ATMEL_MAXTOUCH
+	tristate "Atmel maXTouch based touchscreen: I2C Interface"
+	depends on I2C
+	help
+	  Say Y here if you have a touchscreen interface using an
+	  Atmel maXTouch controller, and your board-specific initialization
+	  code includes that in its table of I2C devices.
+
+	  If unsure, say N (but it's safe to say "Y").
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called maXTouch.
+
+config TOUCHSCREEN_HIMAX
+	tristate "Himax Capacitive TouchScreen"
+	depends on I2C
+	help
+	  Say Y if you have a Himax Capacitive TouchScreen
+
+	  If unsure, say N.
+
+	  This parameter enables the compilation/build of Himax cap touch platform device
+config TOUCHSCREEN_HIMAX_HX8520
+	tristate "Himax HX520 Touchscreen: I2C Interface"
+	depends on I2C
+	help
+	  Say Y or M here if you have a touchscreen interface using an
+	  Himax HX8520 controller.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called himax-hx8520.
+config TOUCHSCREEN_HIMAX_HX8526
+	tristate "Himax HX526 Touchscreen: I2C Interface"
+	depends on I2C
+	help
+	  Say Y or M here if you have a touchscreen interface using an
+	  Himax HX8526 controller.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called himax-hx8526.
+	  
 endif

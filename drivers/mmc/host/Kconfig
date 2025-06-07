@@ -48,6 +48,18 @@ config MMC_SDHCI_PCI
 
 	  If unsure, say N.
 
+config MMC_SDHCI_S3C
+	tristate "SDHCI support on Samsung S3C SoC"
+	depends on MMC_SDHCI && (PLAT_S3C24XX || PLAT_S3C64XX || PLAT_S5PC1XX || PLAT_S5P64XX )
+	help
+	  This selects the Secure Digital Host Controller Interface (SDHCI)
+	  often referrered to as the HSMMC block in some of the Samsung S3C
+	  range of SoC.
+
+	  If you have a controller with this interface, say Y or M here.
+
+	  If unsure, say N.
+
 config MMC_RICOH_MMC
 	tristate "Ricoh MMC Controller Disabler  (EXPERIMENTAL)"
 	depends on MMC_SDHCI_PCI
@@ -192,3 +204,50 @@ config MMC_TMIO
 	help
 	  This provides support for the SD/MMC cell found in TC6393XB,
 	  T7L66XB and also ipaq ASIC3
+
+config MMC_ARASAN_HOST_FIX
+	bool "Workaround for Arasan's SDHCI Host"
+	depends on MMC
+	default n
+	help
+	  This is an option to apply the software workaround for some of the 
+	  hardware issues with Arasan's SDHCI host.
+
+	  If unsure, say N.
+
+config MMC_BCM_SD
+	tristate "Broadcom MMC/SD/SDIO Card Interface support"
+	depends on MMC
+	help
+	  This selects a driver for the MMC/SD/SDIO interface found in 
+	  BCM2820, BCM2152, BCM2850 and BCMRING... CPUs.
+	  If you have a board based on one of those and a MMC/SD 
+	  slot, say Y or M here.
+
+	  If unsure, say N.
+
+config MMC_EXERNAL_SD_CD
+	bool "Broadcom MMC/SD/SDIO Card external Card Detect support"
+	depends on MMC_BCM_SD
+	help
+	  This enabled support for getting the card detect status via the
+	  CardDetectTestLevel bit in the HOST_CONTROL register instead of
+	  via the PresentState register. This in turn can be toggled by
+	  an external driver. 
+
+	  If unsure, say N.
+
+config MMC_BCM_SD_NO_WP
+	bool "Broadcom MMC/SD/SDIO Card no write protect support"
+	depends on MMC_BCM_SD && !MMC_EXTERNAL_SD_CD
+	help
+	  This disables support for the write protect pin, on for example uSD slots.
+
+config MMC_TRANSFER_LOGGING
+	bool "Data transfer logging for SDHCI"
+	depends on MMC_SDHCI
+	default n
+	help
+	  This logs transfers for all SDHCI cards and presents the statistics in sysfs.
+
+	  If unsure, say N.

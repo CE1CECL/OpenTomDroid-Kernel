@@ -27,6 +27,8 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/flash.h>
 
+#undef DEBUG
+#define DEBUG(level, args...) printk(args)
 
 #define FLASH_PAGESIZE		256
 
@@ -35,13 +37,16 @@
 #define	OPCODE_RDSR		0x05	/* Read status register */
 #define	OPCODE_WRSR		0x01	/* Write status register 1 byte */
 #define	OPCODE_NORM_READ	0x03	/* Read data bytes (low frequency) */
+#define	OPCODE_READ		0x03	/* Read data bytes (low frequency) */
 #define	OPCODE_FAST_READ	0x0b	/* Read data bytes (high frequency) */
 #define	OPCODE_PP		0x02	/* Page program (up to 256 bytes) */
 #define	OPCODE_BE_4K		0x20	/* Erase 4KiB block */
 #define	OPCODE_BE_32K		0x52	/* Erase 32KiB block */
 #define	OPCODE_CHIP_ERASE	0xc7	/* Erase whole flash chip */
 #define	OPCODE_SE		0xd8	/* Sector erase (usually 64KiB) */
+#define OPCODE_SE_AT25F4096     0x52  /* Sector erase 64KiB at25f4096 */
 #define	OPCODE_RDID		0x9f	/* Read JEDEC ID */
+#define OPCODE_RDID_AT25F4096     0x15    /* Read JEDEC ID for at25f4096 */
 
 /* Status Register bits. */
 #define	SR_WIP			1	/* Write in progress */
@@ -492,6 +497,7 @@ struct flash_info {
 static struct flash_info __devinitdata m25p_data [] = {
 
 	/* Atmel -- some are (confusingly) marketed as "DataFlash" */
+   { "at25f4096",  0x1f6464, 64 * 1024, 8, 0},
 	{ "at25fs010",  0x1f6601, 0, 32 * 1024, 4, SECT_4K, },
 	{ "at25fs040",  0x1f6604, 0, 64 * 1024, 8, SECT_4K, },
 
@@ -550,16 +556,20 @@ static struct flash_info __devinitdata m25p_data [] = {
 static struct flash_info *__devinit jedec_probe(struct spi_device *spi)
 {
 	int			tmp;
-	u8			code = OPCODE_RDID;
+	u8			code;
 	u8			id[5];
 	u32			jedec;
 	u16                     ext_jedec;
 	struct flash_info	*info;
+   u8          opcode[2] = {OPCODE_RDID, OPCODE_RDID_AT25F4096};
 
 	/* JEDEC also defines an optional "extended device information"
 	 * string for after vendor-specific data, after the three bytes
 	 * we use here.  Supporting some chips might require using it.
 	 */
+
+    for (i=0; i<2; i++) {
+        code = opcode[i];
 	tmp = spi_write_then_read(spi, &code, 1, id, 5);
 	if (tmp < 0) {
 		DEBUG(MTD_DEBUG_LEVEL0, "%s: error %d reading JEDEC ID\n",
@@ -574,6 +584,11 @@ static struct flash_info *__devinit jedec_probe(struct spi_device *spi)
 
 	ext_jedec = id[3] << 8 | id[4];
 
+   if (jedec)
+      break;
+   }
+
+   printk ("jedec = %x\n", jedec);
 	for (tmp = 0, info = m25p_data;
 			tmp < ARRAY_SIZE(m25p_data);
 			tmp++, info++) {
@@ -673,7 +688,7 @@ static int __devinit m25p_probe(struct spi_device *spi)
 		flash->erase_opcode = OPCODE_BE_4K;
 		flash->mtd.erasesize = 4096;
 	} else {
-		flash->erase_opcode = OPCODE_SE;
+		flash->erase_opcode = strcmp (info->name, "at25f4096")? OPCODE_SE: OPCODE_SE_AT25F4096;
 		flash->mtd.erasesize = info->sector_size;
 	}
 

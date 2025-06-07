@@ -68,4 +68,10 @@ config BATTERY_BQ27x00
 	help
 	  Say Y here to enable support for batteries with BQ27200(I2C) chip.
 
+config BATTERY_BCM59040
+	tristate "Broadcom BCM59040 battery driver"
+	depends on BCM_PMU_BCM59040
+	help
+	  Say Y here to enable support for batteries managed via the Broadcom BCM59040 PMU device.
+
 endif # POWER_SUPPLY

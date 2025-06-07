@@ -5,6 +5,12 @@
 # nobody's needed a slave side API yet.  The master-role API is not
 # fully appropriate there, so it'd need some thought to do well.
 #
+menuconfig BCM476X_SPI
+  tristate "SPI controller for BCM4760"
+  depends on PLAT_BCM476X
+  help
+    SPI controller for BCM4760
+
 menuconfig SPI
 	bool "SPI support"
 	depends on HAS_IOMEM
@@ -78,7 +84,7 @@ config SPI_AU1550
 	  will be called au1550_spi.
 
 config SPI_BITBANG
-	tristate "Bitbanging SPI master"
+	tristate "Utilities for Bitbanging SPI masters"
 	help
 	  With a few GPIO pins, your system can bitbang the SPI protocol.
 	  Select this to get SPI support through I/O pins (GPIO, parallel
@@ -99,6 +105,22 @@ config SPI_BUTTERFLY
 	  Butterfly <http://www.atmel.com/products/avr/butterfly>, an
 	  inexpensive battery powered microcontroller evaluation board.
 	  This same cable can be used to flash new firmware.
+
+config SPI_GPIO
+	tristate "GPIO-based bitbanging SPI Master"
+	depends on GENERIC_GPIO
+	select SPI_BITBANG
+	help
+	  This simple GPIO bitbanging SPI master uses the arch-neutral GPIO
+	  interface to manage MOSI, MISO, SCK, and chipselect signals.  SPI
+	  slaves connected to a bus using this driver are configured as usual,
+	  except that the spi_board_info.controller_data holds the GPIO number
+	  for the chipselect used by this controller driver.
+
+	  Note that this driver often won't achieve even 1 Mbit/sec speeds,
+	  making it unusually slow for SPI.  If your platform can inline
+	  GPIO operations, you should be able to leverage that for better
+	  speed with a custom version of this driver; see the source code.
 
 config SPI_IMX
 	tristate "Freescale iMX SPI controller"
@@ -188,6 +210,112 @@ config SPI_SH_SCI
 	help
 	  SPI driver for SuperH SCI blocks.
 
+config SPI_S3C6410
+	tristate "S3C6410 SPI Driver"
+	depends on SPI && CPU_S3C6410
+	select SPI_CNTRLR_0
+	help
+	  Say Y here to include support for SPI controller in the
+	  Samsung S3C6410 based System-on-Chip devices.
+
+config SPI_S5P6440
+	tristate "S5P6440 SPI Driver"
+	depends on SPI && CPU_S5P6440
+	select SPI_CNTRLR_0
+	help
+	  Say Y here to include support for SPI controller in the
+	  Samsung S5P6440 based System-on-Chip devices.
+
+config SPI_S5PC100
+	tristate "S5PC100 SPI Driver"
+	depends on SPI && CPU_S5PC100
+	select SPI_CNTRLR_0
+	help
+	  Say Y here to include support for SPI controller in the
+	  Samsung S5PC100 based System-on-Chip devices.
+
+config SPI_CNTRLR_0
+	bool
+	depends on (SPI_S3C6410 || SPI_S5P6440 || SPI_S5PC100)
+	default y
+
+config SPI_CNTRLR_1
+	bool "SPI-1 Support"
+	depends on (SPI_S3C6410 || SPI_S5P6440 || SPI_S5PC100)
+	default n
+	help
+	  Say N(recommended). This will initialize two controllers.
+
+#config SPI_CNTRLR_2
+#	bool "SPI-2 Support"
+#	depends on (SPI_S5PC100)
+#	default n
+#	help
+#	  Say N(recommended). This will initialize three controllers.
+
+choice
+        prompt "SPI Source Clock"
+	depends on (SPI_S3C6410 || SPI_S5P6440 || SPI_S5PC100)
+
+config SPICLK_SRC_PCLK
+	bool "PCLK"
+	depends on (SPI_S3C6410 || SPI_S5P6440 || SPI_S5PC100)
+	help
+	  Say Y if you want to source SPI clock from PCLK.
+
+config SPICLK_SRC_SCLK48M
+	bool "SCLK48M for SPI"
+	depends on (SPI_S3C6410 || SPI_S5PC100)
+	help
+	  Say Y if you want to source SPI clock from SCLK48M.
+
+config SPICLK_SRC_EPLL
+	bool "EPLL Clock"
+	depends on (SPI_S3C6410 || SPI_S5PC100)
+	help
+	  Say Y if you want to source SPI clock from EPLL.
+
+config SPICLK_SRC_SPIEXT
+	bool "SPI External Clock"
+	depends on  SPI_S5P6440
+	help
+	  Say Y if you want to source SPI clock from Ext SPICLK.
+
+endchoice
+
+choice
+        prompt "Select EPLL Source"
+	depends on (SPICLK_SRC_EPLL || SPICLK_SRC_SPIEXT)
+
+config SPICLK_EPLL_MOUTEPLL
+	bool "MOUTepll"
+
+config SPICLK_EPLL_DOUT
+	bool "DOUTmpll"
+
+config SPICLK_EPLL_FIN
+	bool "FINepll"
+
+config SPICLK_EPLL_27MHZ
+	bool "27MHz"
+	depends on SPI_S3C6410
+
+config SPICLK_EPLL_MOUTHPLL
+	bool "MOUThpll"
+	depends on SPI_S5PC100
+
+endchoice
+
+config SPI_S3C64XX_GPIO
+	tristate "Samsung S3C64XX series SPI by GPIO"
+	depends on SPI_MASTER && (ARCH_S5P64XX || ARCH_S3C64XX)
+	select SPI_BITBANG
+	help
+	  SPI driver for Samsung S3C/S5P-64XX series ARM SoCs using
+	  GPIO lines to provide the SPI bus. This can be used where
+	  the inbuilt hardware cannot provide the transfer mode, or
+	  where the board is using non hardware connected pins.
+
 config SPI_TXX9
 	tristate "Toshiba TXx9 SPI controller"
 	depends on GENERIC_GPIO && CPU_TX49XX
@@ -225,6 +353,10 @@ config SPI_AT25
 	  This driver can also be built as a module.  If so, the module
 	  will be called at25.
 
+config SPI_DUMMY
+	tristate "Dummy spi protocol driver"
+	default n
+	
 config SPI_SPIDEV
 	tristate "User mode SPI device driver support"
 	depends on EXPERIMENTAL

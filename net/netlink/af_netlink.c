@@ -558,6 +558,13 @@ retry:
 
 static inline int netlink_capable(struct socket *sock, unsigned int flag)
 {
+	/* Allow all users to read from a netlink multicast socket.
+	 * Should be removed when we have file system support
+	 * for capabilities.
+	 */
+	if (flag == NL_NONROOT_RECV)
+		return 1;
+
 	return (nl_table[sock->sk->sk_protocol].nl_nonroot & flag) ||
 	       capable(CAP_NET_ADMIN);
 }
@@ -965,6 +972,10 @@ static inline int do_one_broadcast(struct sock *sk,
 	if (!net_eq(sock_net(sk), p->net))
 		goto out;
 
+#ifdef CONFIG_INTERPEAK
+	if ((sk->sk_vr > -1) && (sk->sk_vr != NETLINK_CB(p->skb).vr))
+		goto out;
+#endif
 	if (p->failure) {
 		netlink_overrun(sk);
 		goto out;
@@ -1250,6 +1261,9 @@ static int netlink_sendmsg(struct kiocb *kiocb, struct socket *sock,
 	NETLINK_CB(skb).dst_group = dst_group;
 	NETLINK_CB(skb).loginuid = audit_get_loginuid(current);
 	NETLINK_CB(skb).sessionid = audit_get_sessionid(current);
+#ifdef CONFIG_INTERPEAK
+	NETLINK_CB(skb).vr  = sk->sk_vr;
+#endif
 	security_task_getsecid(current, &(NETLINK_CB(skb).sid));
 	memcpy(NETLINK_CREDS(skb), &siocb->scm->creds, sizeof(struct ucred));
 
@@ -1531,6 +1545,10 @@ static int netlink_dump(struct sock *sk)
 	skb = sock_rmalloc(sk, NLMSG_GOODSIZE, 0, GFP_KERNEL);
 	if (!skb)
 		goto errout;
+
+#ifdef CONFIG_INTERPEAK
+	NETLINK_CB(skb).vr  = sk->sk_vr;
+#endif
 
 	mutex_lock(nlk->cb_mutex);
 

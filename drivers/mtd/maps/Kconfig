@@ -540,5 +540,49 @@ config MTD_PLATRAM
 
 	  This selection automatically selects the map_ram driver.
 
+config MTD_BCM282X_RAM
+	tristate "BCM282X RAM mapped MTD partitions"
+	depends on MTD && ARCH_BCM282X
+    select MTD_RAM
+	select MTD_PARTITIONS
+	help
+	  Create MTD partitons in BCM282X RAM area.
+
+config MTD_BCM282X_NOR
+	tristate "BCM282X NOR flash MTD partitions"
+	depends on MTD && ARCH_BCM282X
+	select MTD_PARTITIONS
+	help
+	  Create MTD partitons on NOR flash.
+
+config MTD_BCM282X_SFLASH
+	tristate "BCM282X serial flash MTD partitions"
+	depends on MTD && BCM282X_SPI && ARCH_BCM282X
+	select MTD_PARTITIONS
+	help
+	  Create MTD partitons on serial flash.
+
+config MTD_BCM476X_RAM
+	tristate "BCM476X RAM mapped MTD partitions"
+	depends on MTD && PLAT_BCM476X
+	select MTD_RAM
+	select MTD_PARTITIONS
+	help
+	  Create MTD partitons in BCM476X RAM area.
+
+config MTD_BCM476X_NOR
+	tristate "BCM476X NOR flash MTD partitions"
+	depends on MTD && PLAT_BCM476X
+	select MTD_PARTITIONS
+	help
+	  Create MTD partitons on NOR flash.
+
+config MTD_BCM476X_SFLASH
+	tristate "BCM476X serial flash MTD partitions"
+	depends on MTD && BCM476X_SPI && PLAT_BCM476X
+	select MTD_PARTITIONS
+	help
+	  Create MTD partitons on serial flash.
+
 endmenu
 
